@@ -4,4 +4,4 @@ A Google Drive to static site generator via [Hugo](https://gohugo.io/), [Pandoc]
 
 #### About the name
 
-driveraker is styled without capitalization. Deriving from the term [muckraker](https://en.wikipedia.org/wiki/Muckraker), an insult (or compliment) directed at journalists; I named driveraker such because driveraker aims to integrate Google Drive with a static site generator like Hugo in order to provide a website for a news publication.
+driveraker is styled without capitalization. The name derives from the term [muckraker](https://en.wikipedia.org/wiki/Muckraker), an insult (or compliment) directed at journalists, I named driveraker such because driveraker aims to integrate Google Drive with a static site generator like Hugo in order to provide a website for a news publication.
