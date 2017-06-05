@@ -86,7 +86,7 @@ Next run `drive init` and follow instructions given.
 sudo apt install pandoc
 ```
 
-## Installing [hugo]()
+## Installing [hugo](https://github.com/spf13/hugo)
 
 ```bash
 sudo apt install hugo
