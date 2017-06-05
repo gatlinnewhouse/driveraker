@@ -78,3 +78,7 @@ Run `sudo apt update` and then `sudo apt install drive` to install drive.
 Make a directory for syncing with `mkdir ~/gdrive` and then `cd ~/gdrive` into the new directory.
 
 Next run `drive init` and follow instructions given.
+
+# Installing pandoc
+
+`sudo apt install pandoc`
