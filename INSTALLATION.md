@@ -74,3 +74,7 @@ Then run `sudo add-apt-repository ppa:twodopeshaggy/drive` to add a PPA for driv
 Run `sudo apt update` and then `sudo apt install drive` to install drive.
 
 ## Setup drive with credentials
+
+Make a directory for syncing with `mkdir ~/gdrive` and then `cd ~/gdrive` into the new directory.
+
+Next run `drive init` and follow instructions given.
