@@ -1,4 +1,7 @@
 # Installing prerequisites
+
+On an Ubuntu 17.04 server.
+
 ## Installing nginx
 
 First, install nginx:
