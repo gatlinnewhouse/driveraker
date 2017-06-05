@@ -1,4 +1,5 @@
-# Installing nginx
+# Installing prerequisites
+## Installing nginx
 
 First, install nginx:
 
@@ -57,7 +58,7 @@ Then check if nginx is running properly by running `systemctl status nginx.servi
 
 Then visit `http://<YOUR-SERVER-IP>:80/` in your web-browser. You should see a page with "Welcome to nginx!" in a bold font.
 
-# Installing [drive](https://github.com/odeke-em/drive)
+## Installing [drive](https://github.com/odeke-em/drive)
 
 Install go with `sudo apt install golang` then set your gopath:
 
@@ -73,12 +74,20 @@ Then run `sudo add-apt-repository ppa:twodopeshaggy/drive` to add a PPA for driv
 
 Run `sudo apt update` and then `sudo apt install drive` to install drive.
 
-## Setup drive with credentials
+### Setup drive with credentials
 
 Make a directory for syncing with `mkdir ~/gdrive` and then `cd ~/gdrive` into the new directory.
 
 Next run `drive init` and follow instructions given.
 
-# Installing pandoc
+## Installing pandoc
 
-`sudo apt install pandoc`
+```bash
+sudo apt install pandoc
+```
+
+## Installing [hugo]()
+
+```bash
+sudo apt install hugo
+```
