@@ -55,7 +55,7 @@ Then check if nginx is running properly by running `systemctl status nginx.servi
            └─8924 nginx: worker process
 ```
 
-Then visit `http://`YOUR-SERVER-IP`:80/` in your web-browser. You should see a page with "Welcome to nginx!" in a bold font.
+Then visit `http://<YOUR-SERVER-IP>:80/` in your web-browser. You should see a page with "Welcome to nginx!" in a bold font.
 
 # Installing [drive](https://github.com/odeke-em/drive)
 
