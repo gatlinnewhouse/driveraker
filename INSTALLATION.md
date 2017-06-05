@@ -57,3 +57,20 @@ Then check if nginx is running properly by running `systemctl status nginx.servi
 
 Then visit `http://`YOUR-SERVER-IP`:80/` in your web-browser. You should see a page with "Welcome to nginx!" in a bold font.
 
+# Installing [drive](https://github.com/odeke-em/drive)
+
+Install go with `sudo apt install golang` then set your gopath:
+
+```bash
+cat << ! >> ~/.bashrc
+> export GOPATH=\$HOME/gopath
+> export PATH=\$GOPATH:\$GOPATH/bin:\$PATH
+> !
+source ~/.bashrc # To reload the settings and get the newly set ones # Or open a fresh terminal
+```
+
+Then run `sudo add-apt-repository ppa:twodopeshaggy/drive` to add a PPA for drive.
+
+Run `sudo apt update` and then `sudo apt install drive` to install drive.
+
+## Setup drive with credentials
