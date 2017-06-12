@@ -32,5 +32,8 @@ find . -iname "*.desktop" -delete
 # Move all .docx files to their parent directory
 find . -iname "*.docx" -execdir mv {} .. \;
 
+# Move all .xlsx files to their parent directory
+find . -iname "*.xlsx" -execdir mv {} .. \;
+
 # Delete all empty folders
 find . -type d -empty -delete
