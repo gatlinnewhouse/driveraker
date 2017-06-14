@@ -1,12 +1,12 @@
 #!/bin/bash
 
-####################################################################################
-# This script will update all synced google drive files to:                        #
-# 1. Use unix compliant names                                                      #
-# 2. Delete all empty files and .desktop files that are synced                     #
-# 3. Move all .docx files out of the "_exports" folders into the parent folder     #
-# 4. Delete all empty folders                                                      #
-####################################################################################
+##############################################################################################
+# This script will update all synced google drive files to:                                  #
+# 1. Use unix compliant names                                                                #
+# 2. Delete all empty files and .desktop files that are synced                               #
+# 3. Move all .docx and .xlsx files out of the "_exports" folders into the parent folder     #
+# 4. Delete all empty folders                                                                #
+##############################################################################################
 
 # Convert filenames to lowercase and replace characters recursively
 if [ -z $1 ];then echo Give target directory; exit 0;fi
