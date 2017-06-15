@@ -11,6 +11,7 @@ import (
 
 type Configuration struct {
         DriveSyncDirectory string
+        GoogleDriveRemoteDirectory string
         HugoPostDirectory string
 }
 
@@ -33,8 +34,22 @@ func read_cfg(filename string, wg *sync.WaitGroup, conf_message chan string) {
         }
         drive_sync_dir := fmt.Sprintf(configuration.DriveSyncDirectory)
         conf_message <- drive_sync_dir
+        drive_remote_dir := fmt.Sprintf(configuration.GoogleDriveRemoteDirectory)
+        conf_message <- drive_remote_dir
         hugo_post_dir := fmt.Sprintf(configuration.HugoPostDirectory)
         conf_message <- hugo_post_dir
+        wg.Done()
+}
+
+func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGroup) {
+        sync := exec.Command("drive pull -desktop-links=false -export docx", drive_remote_dir)
+        sync.Dir = sync_dir
+        fmt.Println("Syncing Google Drive...")
+        out, err := sync.Output()
+        if err != nil {
+                fmt.Println("[ERROR] Error syncing Google Drive: ", err)
+        }
+        fmt.Println("Done syncing!")
         wg.Done()
 }
 
@@ -46,6 +61,8 @@ func main() {
         go read_cfg("conf.json", wg, conf_message)
         drive_sync_dir := <- conf_message
         fmt.Println(drive_sync_dir)
+        drive_remote_dir := <- conf_message
+        fmt.Println(drive_remote_dir)
         hugo_post_dir := <- conf_message
         fmt.Println(hugo_post_dir)
         wg.Wait()

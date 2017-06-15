@@ -1,4 +1,5 @@
 {
         "DriveSyncDirectory": "/home/deleuze/.gdrive/",
-        "HugoPostDirectory": "/home/deleuze/.hugo/content/"
+        "GoogleDriveRemoteDirectory": "The_Quest/WEB_STUFF/",
+        "HugoPostDirectory": "/home/deleuze/.hugo-site/"
 }
