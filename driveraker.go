@@ -6,15 +6,18 @@ import (
         "os"
         "os/exec"
         "log"
+        "regexp"
         "sync"
 )
 
+// The configuration file struct
 type Configuration struct {
         DriveSyncDirectory string
         GoogleDriveRemoteDirectory string
         HugoPostDirectory string
 }
 
+// Read the configuration JSON file in order to get some settings and directories
 func read_cfg(filename string, wg *sync.WaitGroup, conf_message chan string) {
         file, _ := os.Open(filename)
         decoder := json.NewDecoder(file)
@@ -32,6 +35,9 @@ func read_cfg(filename string, wg *sync.WaitGroup, conf_message chan string) {
         wg.Done()
 }
 
+// Sync google drive remote folder to the configured local directory.
+// Then send the output from drive CLI to a function to intepret the output
+// by stripping the full output down to an array of string paths to docx files.
 func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGroup) {
         sync_gd := new(sync.WaitGroup)
         output := make(chan string)
@@ -50,11 +56,15 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGr
         wg.Done()
 }
 
+// Find all Exported file paths via a regex expression and then add them to an array
 func interpret_drive_output(sync_gd *sync.WaitGroup, output chan string) {
         results := <-output
-
+        re := regexp.MustCompile(`to '(.*?)'`)
+        matches := re.FindAllString(results, -1)
+        sync_gd.Done()
 }
 
+// Convert from docx to markdown with pandoc
 func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string, wg *sync.WaitGroup) {
         convert := exec.Command("pandoc --atx-headers --smart --normalize --email-obfuscation=references --mathjax -t markdown_strict -o", md_file_path, docx_file_path)
         out, err := convert.Output()
