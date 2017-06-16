@@ -15,15 +15,6 @@ type Configuration struct {
         HugoPostDirectory string
 }
 
-func exe_cmd(cmd string, arg1 string, wg *sync.WaitGroup) {
-        out, err := exec.Command(cmd, arg1).Output()
-        if err != nil {
-                log.Fatal(err)
-        }
-        fmt.Printf("The output is %s", out)
-        wg.Done()
-}
-
 func read_cfg(filename string, wg *sync.WaitGroup, conf_message chan string) {
         file, _ := os.Open(filename)
         decoder := json.NewDecoder(file)
@@ -42,7 +33,9 @@ func read_cfg(filename string, wg *sync.WaitGroup, conf_message chan string) {
 }
 
 func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGroup) {
-        sync := exec.Command("drive pull -desktop-links=false -export docx", drive_remote_dir)
+        sync_gd := new(sync.WaitGroup)
+        output := make(chan string)
+        sync := exec.Command("drive pull -no-prompt -desktop-links=false -export docx", drive_remote_dir)
         sync.Dir = sync_dir
         fmt.Println("Syncing Google Drive...")
         out, err := sync.Output()
@@ -50,7 +43,16 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGr
                 fmt.Println("[ERROR] Error syncing Google Drive: ", err)
         }
         fmt.Println("Done syncing!")
+        sync_gd.Add(1)
+        go intepret_drive_output(sync_gd, output)
+        output <- string(out)
+        sync_gd.Wait()
         wg.Done()
+}
+
+func interpret_drive_output(sync_gd *sync.WaitGroup, output chan string) {
+        results := <-output
+
 }
 
 func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string, wg *sync.WaitGroup) {
