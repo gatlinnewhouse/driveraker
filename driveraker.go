@@ -53,17 +53,29 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGr
         wg.Done()
 }
 
+func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string, wg *sync.WaitGroup) {
+        convert := exec.Command("pandoc --atx-headers --smart --normalize --email-obfuscation=references --mathjax -t markdown_strict -o", md_file_path, docx_file_path)
+        out, err := convert.Output()
+        if err != nil {
+                fmt.Println("[ERROR] Error converting files to markdown with pandoc: ", err)
+        }
+        wg.Done()
+}
+
+func compile_and_serve_hugo_site(hugo_dir string, prod_dir string, use_hugo bool, wg *sync.WaitGroup) {
+}
+
 func main() {
         conf_message := make(chan string)
         wg := new(sync.WaitGroup)
         wg.Add(2)
         go exe_cmd("echo", "ping", wg)
         go read_cfg("conf.json", wg, conf_message)
-        drive_sync_dir := <- conf_message
+        drive_sync_dir := <-conf_message
         fmt.Println(drive_sync_dir)
-        drive_remote_dir := <- conf_message
+        drive_remote_dir := <-conf_message
         fmt.Println(drive_remote_dir)
-        hugo_post_dir := <- conf_message
+        hugo_post_dir := <-conf_message
         fmt.Println(hugo_post_dir)
         wg.Wait()
 }
