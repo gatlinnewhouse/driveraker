@@ -1,7 +1,9 @@
 package main
 
 import (
+        "crypt/md5"
         "encoding/json"
+        "encoding/hex"
         "fmt"
         "os"
         "os/exec"
@@ -9,6 +11,12 @@ import (
         "regexp"
         "sync"
 )
+
+//The mutex lock for reading/writing to the hashtable
+var counter = struct {
+        sync.RWMutex
+        hashtable map[string]string
+}{hashtable: make(map[string]string)}
 
 // The configuration file struct
 type Configuration struct {
@@ -24,7 +32,8 @@ func read_cfg(filename string, wg *sync.WaitGroup, conf_message chan string) {
         configuration := Configuration{}
         err := decoder.Decode(&configuration)
         if err != nil {
-                fmt.Println("error: ", err)
+                fmt.Println("[ERROR] Error reading the JSON confguration: ", err)
+                return
         }
         drive_sync_dir := fmt.Sprintf(configuration.DriveSyncDirectory)
         conf_message <- drive_sync_dir
@@ -33,6 +42,49 @@ func read_cfg(filename string, wg *sync.WaitGroup, conf_message chan string) {
         hugo_post_dir := fmt.Sprintf(configuration.HugoPostDirectory)
         conf_message <- hugo_post_dir
         wg.Done()
+}
+
+// Use md5 hash sums for the filepaths
+func md5hash(text string, DriveSyncDirectory string) string {
+        r := strings.NewReplacer(DriveSyncDirectory, "")
+        relative-path := r.Replace(text)
+        hasher := md5.New()
+        hasher.Write([]byte(relative-path))
+        return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// Write the filepath string to the hashtable
+func write_path_to_hashtable(path string, hashtable map[string]string) {
+        key := md5hash(path)
+        counter.Lock()
+        counter.m[key]path
+        counter.Unlock()
+}
+
+// Lookup a path in the hashtable, if it exists return true, otherwise false
+func check_for_path(path string, hashtable map[string]string, read *sync.WaitGroup) bool {
+        key := md5hash(path)
+        counter.RLock()
+        read_path := counter.hashtable[key]
+        if (read_path == path) {
+                return true
+        }
+        return false
+}
+
+// Write the hashtable to a json file in order to keep a backup in case of system reboot
+func write_hashtable_to_json(hashtable map[string]string) {
+        bytes, err := json.Marshal(hashtable)
+        if err != nil {
+                fmt.Println("[ERROR] Error writing hashtable to JSON: ", err)
+                return
+        }
+        text := string(bytes)
+        fmt.Println(bytes)
+}
+
+// Read the saved hashtable from the saved json file to restart the syncing after reboot
+func read_hashtable_from_json(hashtable map[string]string, table_dir string) {
 }
 
 // Sync google drive remote folder to the configured local directory.
@@ -47,6 +99,7 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGr
         out, err := sync.Output()
         if err != nil {
                 fmt.Println("[ERROR] Error syncing Google Drive: ", err)
+                return
         }
         fmt.Println("Done syncing!")
         sync_gd.Add(1)
@@ -74,10 +127,11 @@ func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string,
         wg.Done()
 }
 
+// Use hugo to compile the markdown files into html and then serve with hugo or with nginx
 func compile_and_serve_hugo_site(hugo_dir string, prod_dir string, use_hugo bool, wg *sync.WaitGroup) {
 }
 
-func main() {
+/* func main() {
         conf_message := make(chan string)
         wg := new(sync.WaitGroup)
         wg.Add(2)
@@ -90,4 +144,4 @@ func main() {
         hugo_post_dir := <-conf_message
         fmt.Println(hugo_post_dir)
         wg.Wait()
-}
+} */
