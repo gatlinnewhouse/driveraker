@@ -221,6 +221,15 @@ func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string,
         wg.Done()
 }
 
+func add_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
+	f, err := os.Open(md_file_path)
+	if err != nil {
+		fmt.Println("[ERROR] Error opening markdown file: ", err)
+	}
+	// TODO: implement something like https://gist.github.com/toruuetani/f6aa4751a66ef65646c1a4934471396b
+	// in order to prepend hugo headers to the markdown files
+}
+
 // Use hugo to compile the markdown files into html and then serve with hugo or with nginx
 func compile_and_serve_hugo_site(hugo_dir string, prod_dir string, use_hugo bool, wg *sync.WaitGroup) {
 }
