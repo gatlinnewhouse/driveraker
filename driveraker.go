@@ -1,22 +1,159 @@
 package main
 
 import (
+        "bufio"
         "crypt/md5"
         "encoding/json"
         "encoding/hex"
+        "errors"
         "fmt"
+        "io"
+        "log"
         "os"
         "os/exec"
-        "log"
         "regexp"
         "sync"
+        "time"
 )
 
-//The mutex lock for reading/writing to the hashtable
-var counter = struct {
-        sync.RWMutex
-        hashtable map[string]string
-}{hashtable: make(map[string]string)}
+
+/* ========================= */
+/* The follow code is forked */
+/* from github.com/nf/goto   */
+/* ========================= */
+const (
+        saveTimeout     = 10e9
+        saveQueueLength = 1000
+)
+
+type Store inteface {
+        Put(path, key *string) error
+        Get(key, path *string) error
+}
+
+type PathStore struct {
+        mu sync.RWMutex
+        paths map[string]string
+        count int
+        save chan record
+}
+
+type record struct {
+        key, path string
+}
+
+// Use md5 hash sums for the filepaths
+func md5hash(text string, DriveSyncDirectory string) string {
+        r := strings.NewReplacer(DriveSyncDirectory, "")
+        relative-path := r.Replace(text)
+        hasher := md5.New()
+        hasher.Write([]byte(relative-path))
+        return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// Create a hashtable of paths and keys
+func NewPathStore(filename string) *PathStore {
+        s := &PathStore{paths: make(map[string]string)}
+        if filename != "" {
+                s.save = make(chan record, saveQueueLength)
+                if err := s.load(filename); err != nil {
+                        log.Println("[ERROR] Error storing paths: ", err)
+                }
+                go s.saveLoop(filename)
+        }
+        return s
+}
+
+// Check for a path in the hashtable
+func (s *PathStore) Get(key, path *string) bool {
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+        if p, okay := s.paths[*key]; ok {
+                *path = u
+                return nil
+        }
+        return errors.New("Key not found")
+}
+
+// Write a new path to the hashtable for an known key
+func (s *PathStore) Set(key, path *string) bool {
+        s.mu.Lock()
+        defer s.mu.Unlock()
+        if _, present := s.paths[*key]; present {
+                return errors.New("Key already exists")
+        }
+        // Otherwise add the new path
+        s.paths[*key] = *path
+        return nil
+}
+
+// Write a new path to the hashtable without a known key
+func (s *PathStore) Put(path, DriveSyncDirectory, key *string) error {
+        for {
+                *key = md5hash(path, DriveSyncDirectory)
+                s.count++
+                if err := s.Set(key, path); err = nil {
+                        break
+                }
+        }
+        if s.save != nil {
+                s.save <- record{*key, *path}
+        }
+        return nil
+}
+
+// Load the hashtable from a file
+func (s *PathStore) load(filename string) error {
+        f, err := os.Open(filename)
+        if err != nil {
+                return err
+        }
+        defer f.Close()
+        b := bufio.NewReader(f)
+        d := json.NewDecoder(b)
+        for {
+                var r record
+                if err := d.Decode(&r); err == io.EOF {
+                        break
+                } else if err != nil {
+                        return err
+                }
+                if err = s.Set(&r.key, &r.path); err != nil {
+                        return err
+                }
+        }
+        return nil
+}
+
+// Save the hashtable to a file
+func (s *PathStore) saveLoop(filename string) {
+        f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+        if err != nil {
+                log.Println("PathStore: ", err)
+                return
+        }
+        b := bufio.NewWriter(f)
+        e := json.NewEncoder(b)
+        t := time.NewTicker(saveTimeout)
+        defer f.Close()
+        defer b.Flush()
+        for {
+                var err error
+                select {
+                case r:= <-s.save:
+                        err = e.Encode(r)
+                case <-t.C:
+                        err = b.Flush()
+                }
+                if err != nil {
+                        log.Println("PathStore: ", err)
+                }
+        }
+}
+/* ============================= */
+/* End of modified /nf/goto code */
+/* ============================= */
+
 
 // The configuration file struct
 type Configuration struct {
@@ -42,49 +179,6 @@ func read_cfg(filename string, wg *sync.WaitGroup, conf_message chan string) {
         hugo_post_dir := fmt.Sprintf(configuration.HugoPostDirectory)
         conf_message <- hugo_post_dir
         wg.Done()
-}
-
-// Use md5 hash sums for the filepaths
-func md5hash(text string, DriveSyncDirectory string) string {
-        r := strings.NewReplacer(DriveSyncDirectory, "")
-        relative-path := r.Replace(text)
-        hasher := md5.New()
-        hasher.Write([]byte(relative-path))
-        return hex.EncodeToString(hasher.Sum(nil))
-}
-
-// Write the filepath string to the hashtable
-func write_path_to_hashtable(path string, hashtable map[string]string) {
-        key := md5hash(path)
-        counter.Lock()
-        counter.m[key]path
-        counter.Unlock()
-}
-
-// Lookup a path in the hashtable, if it exists return true, otherwise false
-func check_for_path(path string, hashtable map[string]string, read *sync.WaitGroup) bool {
-        key := md5hash(path)
-        counter.RLock()
-        read_path := counter.hashtable[key]
-        if (read_path == path) {
-                return true
-        }
-        return false
-}
-
-// Write the hashtable to a json file in order to keep a backup in case of system reboot
-func write_hashtable_to_json(hashtable map[string]string) {
-        bytes, err := json.Marshal(hashtable)
-        if err != nil {
-                fmt.Println("[ERROR] Error writing hashtable to JSON: ", err)
-                return
-        }
-        text := string(bytes)
-        fmt.Println(bytes)
-}
-
-// Read the saved hashtable from the saved json file to restart the syncing after reboot
-func read_hashtable_from_json(hashtable map[string]string, table_dir string) {
 }
 
 // Sync google drive remote folder to the configured local directory.
