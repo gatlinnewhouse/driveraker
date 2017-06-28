@@ -221,30 +221,76 @@ func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string,
         wg.Done()
 }
 
+
+/* =================================================================== */
+/* The following code forked from:                                     */
+/* https://gist.github.com/toruuetani/f6aa4751a66ef65646c1a4934471396b */
+/* =================================================================== */
+type MarkdownFileRecord struct {
+        Filename string
+        Contents []string
+}
+
+func NewMarkdownFile(filename string) *MarkdownFileRecord {
+        return &MarkdownFileRecord {
+                Filename: filename
+                Contents make([]string, 0)
+        }
+}
+
+func (m *MarkdownFileRecord) readMarkdownLines() error {
+        if _, err := os.Stat(m.Filename); err != nil {
+                return nil
+        }
+        f, err := os.OpenFile(m.Filename, os.O_RDONLY, 0600)
+        if err != nil {
+                return err
+        }
+        defer f.Close()
+
+        scanner := bufio.NewScanner(f)
+        for scanner.Scan() {
+                if tmp := scanner.Text(); len(tmp) != 0 {
+                        m.Contents = append(m.Contents, tmp)
+                }
+        }
+}
+
+func (m *MarkdownFileRecord) Prepend(content string) error {
+        err := m.readLines()
+        if err != nil {
+                return err
+        }
+
+        f, err := os.OpenFile(m.Filename, os.O_CREATE|os.O_WRONLY, 0600)
+        if err != nil {
+                return err
+        }
+        defer f.Close()
+
+        writer := bufio.NewWriter(f)
+        writer.WriteString(fmt.Sprintf("%s\n", content))
+        for _, line := range m.Contents {
+                _, err := writer.WriteString(fmt.Sprintf("%s\n", line))
+                if err != nil {
+                        return err
+                }
+        }
+
+        if err := writer.Flush(); err != nil {
+                return err
+        }
+
+        return nil
+}
+/* ============================== */
+/* End of modified record.go code */
+/* ============================== */
+
+// Add the hugo headers to the markdown file
 func add_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
-	f, err := os.Open(md_file_path)
-	if err != nil {
-		fmt.Println("[ERROR] Error opening markdown file: ", err)
-	}
-	// TODO: implement something like https://gist.github.com/toruuetani/f6aa4751a66ef65646c1a4934471396b
-	// in order to prepend hugo headers to the markdown files
 }
 
 // Use hugo to compile the markdown files into html and then serve with hugo or with nginx
 func compile_and_serve_hugo_site(hugo_dir string, prod_dir string, use_hugo bool, wg *sync.WaitGroup) {
 }
-
-/* func main() {
-        conf_message := make(chan string)
-        wg := new(sync.WaitGroup)
-        wg.Add(2)
-        go exe_cmd("echo", "ping", wg)
-        go read_cfg("conf.json", wg, conf_message)
-        drive_sync_dir := <-conf_message
-        fmt.Println(drive_sync_dir)
-        drive_remote_dir := <-conf_message
-        fmt.Println(drive_remote_dir)
-        hugo_post_dir := <-conf_message
-        fmt.Println(hugo_post_dir)
-        wg.Wait()
-} */
