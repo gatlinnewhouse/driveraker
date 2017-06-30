@@ -1,0 +1,3 @@
+[submodule "duplicates"]
+	path = duplicates
+	url = https://github.com/mathieuancelin/duplicates.git

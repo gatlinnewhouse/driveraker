@@ -287,6 +287,9 @@ func (m *MarkdownFileRecord) Prepend(content string) error {
 /* End of modified record.go code */
 /* ============================== */
 
+func find_duplicate_synced_files(drive_sync_dir string) {
+}
+
 // Add the hugo headers to the markdown file
 func add_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
 }
