@@ -289,6 +289,7 @@ func (m *MarkdownFileRecord) Prepend(content string) error {
 /* ============================== */
 
 func find_duplicate_synced_files(drive_sync_dir string) {
+  duplicatepaths := duplicates.findDuplicates(drive_sync_dir)
 }
 
 // Add the hugo headers to the markdown file
