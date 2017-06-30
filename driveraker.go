@@ -3,6 +3,7 @@ package main
 import (
         "bufio"
         "crypt/md5"
+        "duplicates/duplicates"
         "encoding/json"
         "encoding/hex"
         "errors"
