@@ -3,7 +3,6 @@ package main
 import (
         "bufio"
         "crypt/md5"
-        "duplicates/duplicates"
         "encoding/json"
         "encoding/hex"
         "errors"
@@ -27,7 +26,7 @@ const (
         saveQueueLength = 1000
 )
 
-type Store inteface {
+type Store interface {
         Put(path, key *string) error
         Get(key, path *string) error
 }
@@ -287,10 +286,6 @@ func (m *MarkdownFileRecord) Prepend(content string) error {
 /* ============================== */
 /* End of modified record.go code */
 /* ============================== */
-
-func find_duplicate_synced_files(drive_sync_dir string) {
-  duplicatepaths := duplicates.findDuplicates(drive_sync_dir)
-}
 
 // Add the hugo headers to the markdown file
 func add_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
