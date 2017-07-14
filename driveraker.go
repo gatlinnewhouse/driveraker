@@ -287,8 +287,19 @@ func (m *MarkdownFileRecord) Prepend(content string) error {
 /* End of modified record.go code */
 /* ============================== */
 
+// Read markdown document
+func read_markdown_document(md_file_path string, wg *sync.WaitGroup) {
+        markdownfile := NewMarkdownFile(md_file_path)
+        err := markdownfile.readMarkdownLines()
+        if err != nil {
+                fmt.Println("[ERROR] Error reading lines from the markdown file: ", err)
+        }
+        // Find the substrings for driveraker tags/categories, titles, subtitles, image captions, in-article headers, and bylines here:
+        // First find the DRVRKR\_TAGS using the following regex = [^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)
+}
+
 // Add the hugo headers to the markdown file
-func add_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
+func write_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
 }
 
 // Use hugo to compile the markdown files into html and then serve with hugo or with nginx
