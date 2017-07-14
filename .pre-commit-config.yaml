@@ -1,0 +1,21 @@
+-   repo: git://github.com/dnephin/pre-commit-golang
+    sha: v0.2
+    hooks:
+    -   id: go-fmt
+-   repo: https://github.com/troian/pre-commit-golang
+    sha: HEAD
+    hooks:
+    -   id: go-build
+    -   id: go-metalinter
+        args:
+        - --exclude=corefoundation.go
+        - --deadline=60s
+        - --vendor
+        - --cyclo-over=20
+        - --dupl-threshold=100
+        - --disable=gotype
+        - --enable=goimports
+        - --enable=gosimple
+        - --enable=unparam
+        - --enable=unused
+        - --enable=staticcheck

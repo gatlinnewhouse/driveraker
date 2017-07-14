@@ -2,7 +2,7 @@ package main
 
 import (
         "bufio"
-        "crypt/md5"
+        "crypto/md5"
         "encoding/json"
         "encoding/hex"
         "errors"
@@ -92,7 +92,7 @@ func (s *PathStore) Put(path, DriveSyncDirectory, key *string) error {
         for {
                 *key = md5hash(path, DriveSyncDirectory)
                 s.count++
-                if err := s.Set(key, path); err = nil {
+                if err := s.Set(key, path); err == nil {
                         break
                 }
         }
@@ -233,8 +233,8 @@ type MarkdownFileRecord struct {
 
 func NewMarkdownFile(filename string) *MarkdownFileRecord {
         return &MarkdownFileRecord {
-                Filename: filename
-                Contents make([]string, 0)
+                Filename: filename,
+                Contents: make([]string, 0),
         }
 }
 
