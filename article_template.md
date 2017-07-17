@@ -6,17 +6,15 @@ DRVRKR\_PUB\_DATE: 2017 05 04
 
 DRVRKR\_UPDATE\_DATE: 2017 06 01
 
-<img src="media/image4.png" alt="fff" width="600" height="400" />
+<img src="media/image3.png" alt="ggg.png" width="624" height="350" />
 
-### CAPTION FOR IMAGE (must be under an image)
+##### CAPTION FOR IMAGE (must be under an image)
 
-<span id="_gjdgxs" class="anchor"></span>**Headline (write one here, or
-leave this in)**
+# Headline (write one here, or leave this in)
 
-<span id="_2efymer5gm5d" class="anchor"></span>**Subheader (write one
-here, or leave this in)**
+## Subheader (write one here, or leave this in)
 
-# **By NAME1, NAME2, and NAME3 (write name\[s\] here)**
+#### By NAME1, NAME2, and NAME3 (write name\[s\] here)
 
 The body of your article goes here:
 
@@ -34,7 +32,7 @@ samples lay spread out on the table - Samsa was a travelling salesman -
 and above it there hung a picture that he had recently cut out of an
 illustrated magazine and housed in a nice, gilded frame.
 
-## **In-article header (use this style if need be, otherwise delete)**
+### In-article header (use this style if need be, otherwise delete)
 
 It showed a lady fitted out with a fur hat and fur boa who sat upright,
 raising a heavy fur muff that covered the whole of her lower arm towards
@@ -50,9 +48,9 @@ floundering legs, and only stopped when he began to feel a mild, dull
 pain there that he had never felt before. "Oh, God", he thought, "what a
 strenuous career it is that I've chosen!
 
-<img src="media/image2.png" alt="fff" width="400" height="200" />
+<img src="media/image4.png" alt="fff.png" width="624" height="416" />
 
-### CAPTION for image (must be under image)
+##### CAPTION for image (must be under image)
 
 Travelling day in and day out. Doing business like this takes much more
 effort than doing your own business at home, and on top of that there's
