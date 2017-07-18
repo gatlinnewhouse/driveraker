@@ -296,9 +296,35 @@ func read_markdown_document(md_file_path string, wg *sync.WaitGroup) {
         }
         // Find the substrings for driveraker tags/categories, titles, subtitles, image captions, in-article headers, and bylines here:
         // First find the DRVRKR\_TAGS using the following regex = [^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)
-        if Index(markdownfile.Contents[0], "DRVRKR_TAGS") >= 0 {
+        int i = 0
+        if Index(markdownfile.Contents[i], "DRVRKR\\_TAGS") >= 0 {
                 re := regex.MustCompile(`[^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)`)
-                tags := re.FindAllString(markdownfile.Contents[0], -1)
+                tags := re.FindAllString(markdownfile.Contents[i], -1)
+                i++
+        }
+        // Now find the DRVRKR\_CATEGORIES
+        if Index(markdownfile.Contents[i], "DRVRKR\\_CATEGORIES") >= 0 {
+                re = regex.MustCompile(`[^\\\_:,\n]*?[^(DRVRKR\\\_CATEGORIES)](\w+)`)
+                categories := re.FindAllString(markdownfile.Contents[i], -1)
+                i++
+        }
+        // Now find the DRVRKR\_PUB\_DATE
+        if Index(markdownfile.Contents[i], "DRVRKR\\_PUB\\_DATE") >= 0 {
+                re = regex.MustCompile(`[^\\\_:,\n]*?[^(DRVRKR\\\_PUB\\\_DATE)](\w+)`)
+                publicationyearmonthdate := re.FindAllString(markdownfile.Contents[i], -1)
+                i++
+        }
+        // Now find the DRVRKR\_UPDATE\_DATE
+        if Index(markdownfile.Contents[i], "DRVRKR\\_UPDATE\\_DATE") >= 0 {
+                re = regex.MustCompile(`[^\\\_:,\n]*?[^(DRVRKR\\\_UPDATE\\\_DATE)](\w+)`)
+                updateyearmonthdate := re.FindAllString(markdownfile.Contents[i], -1)
+                i++
+        }
+        // Now find the cover photo for the article
+        if Index(markdownfile.Contents[i], `<img src=`) >= 0 {
+                re = regex.MustCompile(`(\w+.png)`)
+                imagename := re.FindAllString(markdownfile.Contents[i], -1)
+                i++
         }
 }
 
