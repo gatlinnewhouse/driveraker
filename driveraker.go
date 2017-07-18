@@ -296,6 +296,10 @@ func read_markdown_document(md_file_path string, wg *sync.WaitGroup) {
         }
         // Find the substrings for driveraker tags/categories, titles, subtitles, image captions, in-article headers, and bylines here:
         // First find the DRVRKR\_TAGS using the following regex = [^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)
+        if Index(markdownfile.Contents[0], "DRVRKR_TAGS") >= 0 {
+                re := regex.MustCompile(`[^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)`)
+                tags := re.FindAllString(markdownfile.Contents[0], -1)
+        }
 }
 
 // Add the hugo headers to the markdown file
