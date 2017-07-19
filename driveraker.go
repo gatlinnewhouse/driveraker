@@ -287,6 +287,20 @@ func (m *MarkdownFileRecord) Prepend(content string) error {
 /* End of modified record.go code */
 /* ============================== */
 
+// General function for regex
+func regex_line_of_markdown(contents []string, regex string, variable string, line int) (value []string, line_number int) {
+        if Index(contents, variable) >= 0 {
+                re := regex.MustCompile(regex)
+                value := re.FindAllString(contents[line], -1)
+                // if we find it, move down two lines since every line in between new paragraphs is blank in markdown
+                line_number := line + 2
+                return
+        }
+        value := ""
+        line_number := line
+        return
+}
+
 // Read markdown document
 func read_markdown_document(md_file_path string, wg *sync.WaitGroup) {
         markdownfile := NewMarkdownFile(md_file_path)
@@ -296,63 +310,36 @@ func read_markdown_document(md_file_path string, wg *sync.WaitGroup) {
         }
         // Find the substrings for driveraker tags/categories, titles, subtitles, image captions, in-article headers, and bylines below:
         // REWRITE ALL THESE CHECKS TO BE MORE MODULAR (i.e. write another general function)
-        int i = 0
-        if Index(markdownfile.Contents[i], "DRVRKR\\_TAGS") >= 0 {
-                re := regex.MustCompile(`[^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)`)
-                tags := re.FindAllString(markdownfile.Contents[i], -1)
-                i++
-        }
+        var i int
+        var tags []string
+        i = 0
+        tags, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)`, "DRVRKR\\_TAGS", i)
         // Now find the DRVRKR\_CATEGORIES
-        if Index(markdownfile.Contents[i], "DRVRKR\\_CATEGORIES") >= 0 {
-                re = regex.MustCompile(`[^\\\_:,\n]*?[^(DRVRKR\\\_CATEGORIES)](\w+)`)
-                categories := re.FindAllString(markdownfile.Contents[i], -1)
-                i++
-        }
+        var categories []string
+        categories, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_CATEGORIES)](\w+)`, "DRVRKR\\_CATEGORIES", i)
         // Now find the DRVRKR\_PUB\_DATE
-        if Index(markdownfile.Contents[i], "DRVRKR\\_PUB\\_DATE") >= 0 {
-                re = regex.MustCompile(`[^\\\_:,\n]*?[^(DRVRKR\\\_PUB\\\_DATE)](\w+)`)
-                publicationyearmonthdate := re.FindAllString(markdownfile.Contents[i], -1)
-                i++
-        }
+        var publicationyearmonthdate []string
+        publicationyearmonthdate, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_PUB\\\_DATE)](\w+)`, "DRVRKR\\_PUB\\_DATE", i)
         // Now find the DRVRKR\_UPDATE\_DATE
-        if Index(markdownfile.Contents[i], "DRVRKR\\_UPDATE\\_DATE") >= 0 {
-                re = regex.MustCompile(`[^\\\_:,\n]*?[^(DRVRKR\\\_UPDATE\\\_DATE)](\w+)`)
-                updateyearmonthdate := re.FindAllString(markdownfile.Contents[i], -1)
-                i++
-        }
+        var updateyearmonthdate []string
+        updateyearmonthdate, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_UPDATE\\\_DATE)](\w+)`, "DRVRKR\\_UPDATE\\_DATE", i)
         // Now find the cover photo for the article
-        if Index(markdownfile.Contents[i], `<img src=`) >= 0 {
-                re = regex.MustCompile(`(\w+.png)`)
-                imagenames := re.FindAllString(markdownfile.Contents[i], -1)
-                imagename := imagename[1]
-                i++
-        }
+        var imagenames []string
+        var imagename string
+        imagenames, i = regex_line_of_markdown(markdownfile.Contents, `(\w+.png)`, `<img src=`, i)
+        imagename := imagename[1]
         // Now find the image caption
-        if Index(markdownfile.Contents[i], `#####`) >= 0 {
-                re = regex.MustCompile(`##### +(.*)`)
-                imagecaption := re.FindAllString(markdownfile.Contents[i], -1)
-                i++
-        }
+        var imagecaption []string
+        imagecaption, i = regex_line_of_markdown(markdownfile.Contents, `##### +(.*)`, `#####`, i)
         // Now find the headline of the article
-        if Index(markdownfile.Contents[i], `#`) >= 0 {
-                re = regex.MustCompile(`# +(.*)`)
-                title := re.FindAllString(markdownfile.Contents[i], -1)
-                i++
-        }
+        var title []string
+        title, i = regex_line_of_markdown(markdownfile.Contents, `# +(.*)`, `#`, i)
         // Find the subtitle
-        if Index(markdownfile.Contents[i], `##`) >= 0 {
-                re = regex.MustCompile(`# +(.*)`)
-                subtitle := re.FindAllString(markdownfile.Contents[i], -1)
-                i++
-        }
+        var subtitle []string
+        subtitle, i = regex_line_of_markdown(markdownfile.Contents, `# +(.*)`, `##`, i)
         // Find the authors on the byline
-        if Index(markdownfile.Contents[i], `#### By`) >= 0 {
-                re = regex.MustCompile(`(?:#### By |, and |, )(\w+)`)
-                names := re.FindAllString(markdownfile.Contents[i], -1)
-                i++
-        }
-        // TO DO:
-        // * Add loop to find in-line headers, in-line images, and image captions
+        var author_names []string
+        author_names, i = regex_line_of_markdown(markdownfile.contents, `(?:#### By |, and |, )(\w+.\w+)`, `#### By`, i)
 }
 
 // Add the hugo headers to the markdown file
