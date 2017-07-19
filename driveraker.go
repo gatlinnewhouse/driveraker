@@ -294,15 +294,18 @@ func regex_line_of_markdown(contents []string, regex string, variable string, li
                 value := re.FindAllString(contents[line], -1)
                 // if we find it, move down two lines since every line in between new paragraphs is blank in markdown
                 line_number := line + 2
+                // delete the line where information was copied
+                contents[line] = ""
                 return
         }
-        value := ""
-        line_number := line
+        // didn't find anything, then leave blank and do not iterate the line number
+        value = ""
+        line_number = line
         return
 }
 
-// Read markdown document
-func read_markdown_document(md_file_path string, wg *sync.WaitGroup) {
+// Read markdown document and write the hugo headers to the beginning of the document
+func read_markdown_write_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
         markdownfile := NewMarkdownFile(md_file_path)
         err := markdownfile.readMarkdownLines()
         if err != nil {
@@ -340,6 +343,17 @@ func read_markdown_document(md_file_path string, wg *sync.WaitGroup) {
         // Find the authors on the byline
         var author_names []string
         author_names, i = regex_line_of_markdown(markdownfile.contents, `(?:#### By |, and |, )(\w+.\w+)`, `#### By`, i)
+        // For-loop through the rest of the document looking for in-line images
+        // in-line headers are taken care of on frontend by hugo's theme
+        // in-line captions are taken care of on frontend by hugo's theme
+        var inline_images []string
+        for j := i; j < len(markdownfile.Contents); j++; {
+                if Index(markdownfile.Contents[j], `<img src=`) >= 0 {
+                        re2 := regex.MustCompile(`(\w+.png)`)
+                        inline_image := re2.FindAllStrings(markdownfile.Contents[j], -1)
+                        inline_images = append(inline_images, inline_image[1])
+                }
+        }
 }
 
 // Add the hugo headers to the markdown file
