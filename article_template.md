@@ -14,7 +14,7 @@ DRVRKR\_UPDATE\_DATE: 2017 06 01
 
 ## Subheader (write one here, or leave this in)
 
-#### By NAME1, NAME2, and NAME3 (write name\[s\] here)
+#### By NAME1 LAST1, NAME2 LAST2, and NAME3 LAST3 (write name\[s\] here)
 
 The body of your article goes here:
 
