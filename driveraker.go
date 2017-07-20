@@ -283,6 +283,14 @@ func (m *MarkdownFileRecord) Prepend(content string) error {
 
         return nil
 }
+
+func (m *MarkdownFileRecord) PrependWrapper(content string) {
+        err := m.Prepend(content)
+        if err != nil {
+                fmt.Println("[ERROR] There was an error writing hugo headers: ", err)
+        }
+}
+
 /* ============================== */
 /* End of modified record.go code */
 /* ============================== */
@@ -342,7 +350,7 @@ func read_markdown_write_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
         subtitle, i = regex_line_of_markdown(markdownfile.Contents, `# +(.*)`, `##`, i)
         // Find the authors on the byline
         var author_names []string
-        author_names, i = regex_line_of_markdown(markdownfile.contents, `(?:#### By |, and |, )(\w+.\w+)`, `#### By`, i)
+        author_names, i = regex_line_of_markdown(markdownfile.contents, `[^(####By |,and|,)](?:By | and)*?(\w+.\w+)`, `#### By`, i)
         // For-loop through the rest of the document looking for in-line images
         // in-line headers are taken care of on frontend by hugo's theme
         // in-line captions are taken care of on frontend by hugo's theme
@@ -354,6 +362,33 @@ func read_markdown_write_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
                         inline_images = append(inline_images, inline_image[1])
                 }
         }
+        // Now prepend the hugo headers to the file
+        // they will need to be prepended backwards
+        markdownfile.PrependWrapper("+++")
+        author_list := fmt.Sprintf("%f", author_names)
+        author_list = strings.Replace(author_list, `%!f(string=`, `"`, -1)
+        author_list = strings.Replace(author_list, `) `, `", `, -1)
+        author_list = strings.Replace(author_list, `)`, `"`, -1)
+        markdownfile.PrependWrapper("authors: " + author_list)
+        tag_list := fmt.Sprintf("%f", tags)
+        tag_list = strings.Replace(tag_list, `%!f(string= `, `'`, -1)
+        tag_list = strings.Replace(tag_list, `) `, `', `, -1)
+        tag_list = strings.Replace(tag_list, `)`, `'`, -1)
+        markdownfile.PrependWrapper("tags: " + tag_list)
+        cat_list := fmt.Sprintf("%f", categories)
+        cat_list = strings.Replace(cat_list, `%!f(string= `, `'`, -1)
+        cat_list = strings.Replace(cat_list, `) `, `', `, -1)
+        cat_list = strings.Replace(cat_list, `)`, `'`, -1)
+        markdownfile.PrependWrapper("categories: " + cat_list)
+        markdownfile.PrependWrapper("draft: false")
+        markdownfile.PrependWrapper("image: \"" + imagename + "\"")
+        pub_date := fmt.Sprintf("%f", publicationyearmonthdate)
+        pub_date = strings.Replace(pub_date, `%!f(string= `, ``, -1)
+        pub_date = strings.Replace(pub_date, `)`, ``, -1)
+        pub_date = strings.Replace(pub_date, `[`, `"`, -1)
+        pub_date = strings.Replace(pub_date, `]`, `"`, -1)
+        pub_date = strings.Replace(pub_date, ` `, `-`, -1)
+        markdownfile.PrependWrapper("date: " + pub_date)
 }
 
 // Add the hugo headers to the markdown file
