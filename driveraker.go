@@ -11,6 +11,7 @@ import (
         "log"
         "os"
         "os/exec"
+        "path"
         "regexp"
         "sync"
         "time"
@@ -313,7 +314,7 @@ func regex_line_of_markdown(contents []string, regex string, variable string, li
 }
 
 // Read markdown document and write the hugo headers to the beginning of the document
-func read_markdown_write_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
+func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string, hugo_dir string, wg *sync.WaitGroup) {
         markdownfile := NewMarkdownFile(md_file_path)
         err := markdownfile.readMarkdownLines()
         if err != nil {
@@ -338,7 +339,17 @@ func read_markdown_write_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
         var imagenames []string
         var imagename string
         imagenames, i = regex_line_of_markdown(markdownfile.Contents, `(\w+.png)`, `<img src=`, i)
-        imagename := imagename[1]
+        imagename := imagenames[1]
+        cover_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + imagename
+        cover_image_path_after := hugo_dir + "/static/images/" + imagename
+        copy_cover_image := exec.Command("cp", cover_image_path_before + " " + cover_image_path_after)
+        copy_cover_image.Dir = cover_image_path_before
+        fmt.Println("Moving inline image to hugo directory...")
+        out, err := copy_cover_image.Output()
+        if err != nil {
+                fmt.Println("[ERROR] Error moving" + imagename + ": ", err)
+                return
+        }
         // Now find the image caption
         var imagecaption []string
         imagecaption, i = regex_line_of_markdown(markdownfile.Contents, `##### +(.*)`, `#####`, i)
@@ -354,12 +365,27 @@ func read_markdown_write_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
         // For-loop through the rest of the document looking for in-line images
         // in-line headers are taken care of on frontend by hugo's theme
         // in-line captions are taken care of on frontend by hugo's theme
-        var inline_images []string
         for j := i; j < len(markdownfile.Contents); j++; {
                 if Index(markdownfile.Contents[j], `<img src=`) >= 0 {
                         re2 := regex.MustCompile(`(\w+.png)`)
                         inline_image := re2.FindAllStrings(markdownfile.Contents[j], -1)
-                        inline_images = append(inline_images, inline_image[1])
+                        inline_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + inline_image[1]
+                        inline_image_path_after := hugo_dir + "/static/images/" + inline_image[1]
+                        copy_image := exec.Command("cp", inline_image_path_before + " " + inline_image_path_after)
+                        copy_image.Dir = inline_image_path_before
+                        fmt.Println("Moving inline image to hugo directory...")
+                        out, err := copy_image.Output()
+                        if err != nil {
+                                fmt.Println("[ERROR] Error moving" + inline_image[1] + ": ", err)
+                                return
+                        }
+                        fmt.Println("Done moving " + inline_image[1])
+                        fmt.Println("Writing a new inline-image path for " + md_file_path)
+                        // Use the image caption as the alt text for the inline-image
+                        regex_alt_text := regex.MustCompile(`##### +(.*)`)
+                        alt_text := regex_alt_text.FindAllString(markdownfile.Contents[j + 2], -1)
+                        // Rewrite the inline image to have a css class called inline-image
+                        markdownfile.Contents[j] = "<img src= \"" + inline_image_path_after + "\" alt=\"" + alt_text + "\" class=\"inline-image\">"
                 }
         }
         // Now prepend the hugo JSON front-matter to the file
