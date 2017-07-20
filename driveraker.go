@@ -362,33 +362,67 @@ func read_markdown_write_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
                         inline_images = append(inline_images, inline_image[1])
                 }
         }
-        // Now prepend the hugo headers to the file
+        // Now prepend the hugo JSON front-matter to the file
         // they will need to be prepended backwards
-        markdownfile.PrependWrapper("+++")
+        markdownfile.PrependWrapper("}")
+        // Add authors to hugo front-matter
         author_list := fmt.Sprintf("%f", author_names)
         author_list = strings.Replace(author_list, `%!f(string=`, `"`, -1)
         author_list = strings.Replace(author_list, `) `, `", `, -1)
         author_list = strings.Replace(author_list, `)`, `"`, -1)
-        markdownfile.PrependWrapper("authors: " + author_list)
+        markdownfile.PrependWrapper("    \"authors\": " + author_list)
+        // Add tags to hugo front-matter
         tag_list := fmt.Sprintf("%f", tags)
-        tag_list = strings.Replace(tag_list, `%!f(string= `, `'`, -1)
-        tag_list = strings.Replace(tag_list, `) `, `', `, -1)
-        tag_list = strings.Replace(tag_list, `)`, `'`, -1)
-        markdownfile.PrependWrapper("tags: " + tag_list)
+        tag_list = strings.Replace(tag_list, `%!f(string= `, `"`, -1)
+        tag_list = strings.Replace(tag_list, `) `, `", `, -1)
+        tag_list = strings.Replace(tag_list, `)`, `"`, -1)
+        markdownfile.PrependWrapper("    \"tags\": " + tag_list)
+        // Add categories to hugo front-matter
         cat_list := fmt.Sprintf("%f", categories)
-        cat_list = strings.Replace(cat_list, `%!f(string= `, `'`, -1)
-        cat_list = strings.Replace(cat_list, `) `, `', `, -1)
-        cat_list = strings.Replace(cat_list, `)`, `'`, -1)
-        markdownfile.PrependWrapper("categories: " + cat_list)
-        markdownfile.PrependWrapper("draft: false")
-        markdownfile.PrependWrapper("image: \"" + imagename + "\"")
+        cat_list = strings.Replace(cat_list, `%!f(string= `, `"`, -1)
+        cat_list = strings.Replace(cat_list, `) `, `", `, -1)
+        cat_list = strings.Replace(cat_list, `)`, `"`, -1)
+        markdownfile.PrependWrapper("    \"categories\": " + cat_list)
+        // Mark article as not a draft in hugo front-matter
+        markdownfile.PrependWrapper("    \"draft\": \"false\"")
+        // Add image path to hugo front-matter
+        markdownfile.PrependWrapper("    \"image\": \"" + imagename + "\"")
+        // Add a last modified date to the hugo front-matter
+        mod_date := fmt.Sprintf("%f", updateyearmonthdate)
+        mod_date = strings.Replace(mod_date, `%!f(string= `, ``, -1)
+        mod_date = strings.Replace(mod_date, `)`, ``, -1)
+        mod_date = strings.Replace(mod_date, `[`, `"`, -1)
+        mod_date = strings.Replace(mod_date, `]`, `"`, -1)
+        mod_date = strings.Replace(mod_date, ` `, `-`, -1)
+        markdownfile.PrependWrapper("    \"lastmod\": " + mod_date)
+        // Add publication date to hugo front-matter
+        // And only publish the article on the date or after it
         pub_date := fmt.Sprintf("%f", publicationyearmonthdate)
         pub_date = strings.Replace(pub_date, `%!f(string= `, ``, -1)
         pub_date = strings.Replace(pub_date, `)`, ``, -1)
         pub_date = strings.Replace(pub_date, `[`, `"`, -1)
         pub_date = strings.Replace(pub_date, `]`, `"`, -1)
         pub_date = strings.Replace(pub_date, ` `, `-`, -1)
-        markdownfile.PrependWrapper("date: " + pub_date)
+        markdownfile.PrependWrapper("    \"publishDate\": " + pub_date)
+        markdownfile.PrependWrapper("    \"date\": " + pub_date)
+        // Add the subtitle as a description of the story to the hugo front-matter
+        // Front end can use the subtitle as a brief description of the story for the front page
+        // Front end style can make the description field a subtitle for the article page
+        description := fmt.Sprintf("%f", subtitle)
+        description = strings.Replace(description, `%!f(string= `, ``, -1)
+        description = strings.Replace(description, `)`, ``, -1)
+        description = strings.Replace(description, `[`, `"`, -1)
+        description = strings.Replace(description, `]`, `"`, -1)
+        markdownfile.PrependWrapper("    \"description\": " + description)
+        // Add Title to the hugo front-matter
+        headline := fmt.Sprintf("%f", title)
+        headline = strings.Replace(headline, `%!f(string= `, ``, -1)
+        headline = strings.Replace(headline, `)`, ``, -1)
+        headline = strings.Replace(headline, `[`, `"`, -1)
+        headline = strings.Replace(headline, `]`, `"`, -1)
+        markdownfile.PrependWrapper("    \"title\": " + headline)
+        // End the hugo JSON front-matter
+        markdownfile.PrependWrapper("{")
 }
 
 // Use hugo to compile the markdown files into html and then serve with hugo or with nginx
