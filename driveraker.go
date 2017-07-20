@@ -391,10 +391,6 @@ func read_markdown_write_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
         markdownfile.PrependWrapper("date: " + pub_date)
 }
 
-// Add the hugo headers to the markdown file
-func write_hugo_headers(md_file_path string, wg *sync.WaitGroup) {
-}
-
 // Use hugo to compile the markdown files into html and then serve with hugo or with nginx
 func compile_and_serve_hugo_site(hugo_dir string, prod_dir string, use_hugo bool, wg *sync.WaitGroup) {
 }
