@@ -1,4 +1,4 @@
-package main
+package mai
 
 import (
         "bufio"
@@ -11,6 +11,7 @@ import (
         "log"
         "os"
         "os/exec"
+        "os/user"
         "path"
         "regexp"
         "sync"
@@ -164,7 +165,7 @@ type Configuration struct {
 }
 
 // Read the configuration JSON file in order to get some settings and directories
-func read_cfg(filename string, wg *sync.WaitGroup, conf_message chan string) {
+func read_cfg(filename string, conf *sync.WaitGroup, conf_message chan string) {
         file, _ := os.Open(filename)
         decoder := json.NewDecoder(file)
         configuration := Configuration{}
@@ -185,9 +186,10 @@ func read_cfg(filename string, wg *sync.WaitGroup, conf_message chan string) {
 // Sync google drive remote folder to the configured local directory.
 // Then send the output from drive CLI to a function to intepret the output
 // by stripping the full output down to an array of string paths to docx files.
-func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGroup) {
+func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGroup, docx_paths_message chan []string) {
         sync_gd := new(sync.WaitGroup)
         output := make(chan string)
+        file_paths := make(chan []string)
         sync := exec.Command("drive pull -no-prompt -desktop-links=false -export docx", drive_remote_dir)
         sync.Dir = sync_dir
         fmt.Println("Syncing Google Drive...")
@@ -198,28 +200,31 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGr
         }
         fmt.Println("Done syncing!")
         sync_gd.Add(1)
-        go intepret_drive_output(sync_gd, output)
+        go intepret_drive_output(&sync_gd, output, file_paths)
         output <- string(out)
         sync_gd.Wait()
+        docx_paths := <-file_paths
+        docx_paths_message <- docx_paths
         wg.Done()
 }
 
 // Find all Exported file paths via a regex expression and then add them to an array
-func interpret_drive_output(sync_gd *sync.WaitGroup, output chan string) {
+func interpret_drive_output(sync_gd *sync.WaitGroup, output chan string, file_paths chan []string) {
         results := <-output
         re := regexp.MustCompile(`to '(.*?)'`)
         matches := re.FindAllString(results, -1)
+        file_paths <- matches
         sync_gd.Done()
 }
 
 // Convert from docx to markdown with pandoc
-func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string, wg *sync.WaitGroup) {
+func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string, pandoc *sync.WaitGroup) {
         convert := exec.Command("pandoc --atx-headers --smart --normalize --email-obfuscation=references --mathjax -t markdown_strict -o", md_file_path, docx_file_path)
         out, err := convert.Output()
         if err != nil {
                 fmt.Println("[ERROR] Error converting files to markdown with pandoc: ", err)
         }
-        wg.Done()
+        pandoc.Done()
 }
 
 
@@ -453,4 +458,33 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 
 // Use hugo to compile the markdown files into html and then serve with hugo or with nginx
 func compile_and_serve_hugo_site(hugo_dir string, prod_dir string, use_hugo bool, wg *sync.WaitGroup) {
+}
+
+func main() {
+        // Get the user's home directory
+        usr, err := user.Current()
+        $HOME := user.HomeDir
+        if err != nil {
+                fmt.Println("[ERROR] driveraker could not get the user's home directory")
+        }
+        // Set the driveraker config path
+        driveraker_config := $HOME + "/.config/driveraker/config"
+        // Read the driveraker config
+        conf_message := make(chan string)
+        var conf sync.WaitGroup
+        conf.Add(1)
+        go read_cfg(driveraker_config, &conf, conf_message)
+        // Set the configured paths
+        drive_sync_dir := <-conf_message
+        drive_remote_dir := <-conf_message
+        hugo_post_dir := <-conf_message
+        conf.Wait()
+        // Sync Google Drive
+        docx_paths_message := make(chan string)
+        var drive_sync sync.WaitGroup
+        drive_sync.Add(1)
+        go sync_google_drive(drive_sync_dir, drive_remote_dir, &drive_sync, docx_paths_message)
+        docx_file_paths := <-docx_paths_message
+        drive_sync.Wait()
+        // Convert the docx files into markdown files
 }
