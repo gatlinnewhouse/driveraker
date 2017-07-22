@@ -224,7 +224,7 @@ func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string,
         if err != nil {
                 fmt.Println("[ERROR] Error converting files to markdown with pandoc: ", err)
         }
-        pandoc.Done()
+        fmt.Println("Pandoc: ", out)
 }
 
 
@@ -319,7 +319,7 @@ func regex_line_of_markdown(contents []string, regex string, variable string, li
 }
 
 // Read markdown document and write the hugo headers to the beginning of the document
-func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string, hugo_dir string, wg *sync.WaitGroup) {
+func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string, hugo_dir string, front_matter *sync.WaitGroup) {
         markdownfile := NewMarkdownFile(md_file_path)
         err := markdownfile.readMarkdownLines()
         if err != nil {
@@ -454,6 +454,7 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
         markdownfile.PrependWrapper("    \"title\": " + headline)
         // End the hugo JSON front-matter
         markdownfile.PrependWrapper("{")
+        front_matter.Done()
 }
 
 // Use hugo to compile the markdown files into html and then serve with hugo or with nginx
@@ -487,4 +488,24 @@ func main() {
         docx_file_paths := <-docx_paths_message
         drive_sync.Wait()
         // Convert the docx files into markdown files
+        var pandoc sync.WaitGroup
+        pandoc.Add(len(docx_file_paths))
+        var markdown_paths []string
+        fmt.Println("Converting synced docx files into markdown files...")
+        for i = 0; i < len(docx_file_paths); i++; {
+                name_regex := regex.MustCompile(`(\w+)(?:.docx)`)
+                name := name_regex.FindAllString(docx_file_paths[i], -1)
+                markdown_path := hugo_post_dir + "content/articles/" + name ".md"
+                markdown_paths = append(markdown_paths, markdown_path)
+                go convert_to_markdown_with_pandoc(docx_file_paths[i], markdown_path, &pandoc)
+        }
+        pandoc.Wait()
+        // Add hugo front-matter to the files
+        var front-matter sync.WaitGroup
+        front-matter.Add(len(markdown_paths))
+        fmt.Println("Adding hugo front-matter to markdown files...")
+        for i = 0; i < len(markdown_paths); i++; {
+                go read_markdown_write_hugo_headers(markdown_paths[i], docx_file_paths[i], hugo_post_dir, &front-matter)
+        }
+        front-matter.Wait()
 }
