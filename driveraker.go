@@ -202,12 +202,13 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, drive_sync *syn
 		fmt.Println("[ERROR] Error syncing Google Drive: ", err)
 		return
 	}
+	fmt.Println("[DRIVE] ", out)
 	fmt.Println("Done syncing!")
 	sync_gd.Add(1)
 	go interpret_drive_output(sync_gd, output, file_paths)
 	output <- string(out)
-	sync_gd.Wait()
 	docx_paths := <-file_paths
+	sync_gd.Wait()
 	docx_paths_message <- docx_paths
 	drive_sync.Done()
 }
@@ -230,7 +231,8 @@ func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string,
 	if err != nil {
 		fmt.Println("[ERROR] Error converting files to markdown with pandoc: ", err)
 	}
-	fmt.Println("Pandoc: ", out)
+	fmt.Println("[PANDOC] ", out)
+	pandoc.Done()
 }
 
 /* =================================================================== */
