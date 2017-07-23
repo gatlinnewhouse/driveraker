@@ -2,13 +2,13 @@ package main
 
 import (
 	"bufio"
-//	"crypto/md5"
-//	"encoding/hex"
+	//	"crypto/md5"
+	//	"encoding/hex"
 	"encoding/json"
-//	"errors"
+	//	"errors"
 	"fmt"
-//	"io"
-//	"log"
+	//	"io"
+	//	"log"
 	"os"
 	"os/exec"
 	"os/user"
@@ -16,7 +16,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-//	"time"
+	//	"time"
 )
 
 /* ========================= */
