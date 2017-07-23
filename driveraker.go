@@ -192,7 +192,7 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGr
 	sync_gd := new(sync.WaitGroup)
 	output := make(chan string)
 	file_paths := make(chan []string)
-	sync := exec.Command("drive pull -no-prompt -desktop-links=false -export docx", drive_remote_dir)
+	sync := exec.Command("/usr/bin/drive", "pull -no-prompt -desktop-links=false -export docx", drive_remote_dir)
 	sync.Dir = sync_dir
 	fmt.Println("Syncing Google Drive...")
 	out, err := sync.Output()
@@ -356,9 +356,10 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 		fmt.Println("[ERROR] Error moving"+imagename+": ", err)
 		return
 	}
+	fmt.Println("Moved the image: ", out)
 	// Now find the image caption
-	var imagecaption []string
-	imagecaption, i = regex_line_of_markdown(markdownfile.Contents, `##### +(.*)`, `#####`, i)
+	//var imagecaption []string
+	//imagecaption, i = regex_line_of_markdown(markdownfile.Contents, `##### +(.*)`, `#####`, i)
 	// Now find the headline of the article
 	var title []string
 	title, i = regex_line_of_markdown(markdownfile.Contents, `# +(.*)`, `#`, i)
@@ -385,6 +386,7 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 				fmt.Println("[ERROR] Error moving"+inline_image[1]+": ", err)
 				return
 			}
+			fmt.Println("Moving the image: ", out)
 			fmt.Println("Done moving " + inline_image[1])
 			fmt.Println("Writing a new inline-image path for " + md_file_path)
 			// Use the image caption as the alt text for the inline-image
