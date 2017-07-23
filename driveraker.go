@@ -168,6 +168,7 @@ type Configuration struct {
 
 // Read the configuration JSON file in order to get some settings and directories
 func read_cfg(filename string, conf *sync.WaitGroup, conf_message chan string) {
+	fmt.Println("Reading configuration...")
 	file, _ := os.Open(filename)
 	decoder := json.NewDecoder(file)
 	configuration := Configuration{}
@@ -182,17 +183,18 @@ func read_cfg(filename string, conf *sync.WaitGroup, conf_message chan string) {
 	conf_message <- drive_remote_dir
 	hugo_post_dir := fmt.Sprintf(configuration.HugoPostDirectory)
 	conf_message <- hugo_post_dir
+	fmt.Println("Finished reading configuration!")
 	conf.Done()
 }
 
 // Sync google drive remote folder to the configured local directory.
 // Then send the output from drive CLI to a function to intepret the output
 // by stripping the full output down to an array of string paths to docx files.
-func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGroup, docx_paths_message chan []string) {
+func sync_google_drive(sync_dir string, drive_remote_dir string, drive_sync *sync.WaitGroup, docx_paths_message chan []string) {
 	sync_gd := new(sync.WaitGroup)
 	output := make(chan string)
 	file_paths := make(chan []string)
-	sync := exec.Command("/usr/bin/drive", "pull -no-prompt -desktop-links=false -export docx", drive_remote_dir)
+	sync := exec.Command("/usr/bin/drive", "pull", "-no-prompt", "-desktop-links=false", "-export", "docx", drive_remote_dir)
 	sync.Dir = sync_dir
 	fmt.Println("Syncing Google Drive...")
 	out, err := sync.Output()
@@ -207,21 +209,23 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, wg *sync.WaitGr
 	sync_gd.Wait()
 	docx_paths := <-file_paths
 	docx_paths_message <- docx_paths
-	wg.Done()
+	drive_sync.Done()
 }
 
 // Find all Exported file paths via a regex expression and then add them to an array
 func interpret_drive_output(sync_gd *sync.WaitGroup, output chan string, file_paths chan []string) {
+	fmt.Println("Interpreting command line output")
 	results := <-output
 	re := regexp.MustCompile(`to '(.*?)'`)
 	matches := re.FindAllString(results, -1)
 	file_paths <- matches
+	fmt.Println("Done!")
 	sync_gd.Done()
 }
 
 // Convert from docx to markdown with pandoc
 func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string, pandoc *sync.WaitGroup) {
-	convert := exec.Command("pandoc --atx-headers --smart --normalize --email-obfuscation=references --mathjax -t markdown_strict -o", md_file_path, docx_file_path)
+	convert := exec.Command("/usr/bin/pandoc", "--atx-headers", "--smart", "--normalize", "--email-obfuscation=references", "--mathjax", "-t", "markdown_strict", "-o", md_file_path, docx_file_path)
 	out, err := convert.Output()
 	if err != nil {
 		fmt.Println("[ERROR] Error converting files to markdown with pandoc: ", err)
@@ -348,7 +352,7 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	imagename := imagenames[1]
 	cover_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + imagename
 	cover_image_path_after := hugo_dir + "/static/images/" + imagename
-	copy_cover_image := exec.Command("cp", cover_image_path_before+" "+cover_image_path_after)
+	copy_cover_image := exec.Command("cp", cover_image_path_before, cover_image_path_after)
 	copy_cover_image.Dir = cover_image_path_before
 	fmt.Println("Moving inline image to hugo directory...")
 	out, err := copy_cover_image.Output()
@@ -378,7 +382,7 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 			inline_image := re2.FindAllString(markdownfile.Contents[j], -1)
 			inline_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + inline_image[1]
 			inline_image_path_after := hugo_dir + "/static/images/" + inline_image[1]
-			copy_image := exec.Command("cp", inline_image_path_before+" "+inline_image_path_after)
+			copy_image := exec.Command("cp", inline_image_path_before, inline_image_path_after)
 			copy_image.Dir = inline_image_path_before
 			fmt.Println("Moving inline image to hugo directory...")
 			out, err := copy_image.Output()
