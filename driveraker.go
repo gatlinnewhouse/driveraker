@@ -217,8 +217,9 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, drive_sync *syn
 func interpret_drive_output(sync_gd *sync.WaitGroup, output chan string, file_paths chan []string) {
 	fmt.Println("Interpreting command line output")
 	results := <-output
-	re := regexp.MustCompile(`to '(.*?)'`)
+	re := regexp.MustCompile(`[^'](?:to ')(.*?)'`)
 	matches := re.FindAllString(results, -1)
+	fmt.Printf("File paths: %s \n", matches)
 	file_paths <- matches
 	fmt.Println("Done!")
 	sync_gd.Done()
@@ -495,6 +496,7 @@ func main() {
 	drive_sync.Add(1)
 	go sync_google_drive(drive_sync_dir, drive_remote_dir, &drive_sync, docx_paths_message)
 	docx_file_paths := <-docx_paths_message
+	fmt.Printf("docx file paths: %s \n", docx_file_paths)
 	drive_sync.Wait()
 	// Convert the docx files into markdown files
 	var pandoc sync.WaitGroup
