@@ -227,7 +227,8 @@ func interpret_drive_output(sync_gd *sync.WaitGroup, output chan string, file_pa
 
 // Convert from docx to markdown with pandoc
 func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string, pandoc *sync.WaitGroup) {
-	convert := exec.Command("/usr/bin/pandoc", "--atx-headers", "--smart", "--normalize", "--email-obfuscation=references", "--mathjax", "-t", "markdown_strict", "-o", md_file_path, docx_file_path)
+	convert := exec.Command("/usr/bin/pandoc", "--verbose", "--atx-headers", "--smart", "--normalize", "--email-obfuscation=references", "--mathjax", "-t", "markdown_strict", "-o", md_file_path, docx_file_path)
+	convert.Dir = path.Dir(docx_file_path) + "/"
 	out, err := convert.Output()
 	if err != nil {
 		fmt.Println("[ERROR] Error converting files to markdown with pandoc: ", err)
@@ -504,11 +505,15 @@ func main() {
 	var markdown_paths []string
 	fmt.Println("Converting synced docx files into markdown files...")
 	for i := 0; i < len(docx_file_paths); i++ {
+		docx_file_path := docx_file_paths[i]
+		docx_file_path = strings.Replace(docx_file_path, `to '`, ``, -1)
+		docx_file_path = strings.Replace(docx_file_path, `docx'`, `docx`, -1)
+		fmt.Println("Converting " + docx_file_path)
 		name_regex := regexp.MustCompile(`(\w+)(?:.docx)`)
-		name := name_regex.FindAllString(docx_file_paths[i], -1)
+		name := name_regex.FindAllString(docx_file_path, -1)
 		markdown_path := hugo_post_dir + "content/articles/" + name[0] + ".md"
 		markdown_paths = append(markdown_paths, markdown_path)
-		go convert_to_markdown_with_pandoc(docx_file_paths[i], markdown_path, &pandoc)
+		go convert_to_markdown_with_pandoc(docx_file_path, markdown_path, &pandoc)
 	}
 	pandoc.Wait()
 	// Add hugo front-matter to the files

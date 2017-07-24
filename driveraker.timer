@@ -1,0 +1,9 @@
+[Unit]
+Description=Run driveraker every hour
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=60min
+
+[Install]
+WantedBy=timers.target
