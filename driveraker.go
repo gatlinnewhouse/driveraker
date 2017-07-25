@@ -8,6 +8,7 @@ import (
 	//	"errors"
 	"fmt"
 	//	"io"
+	"io/ioutil"
 	//	"log"
 	"os"
 	"os/exec"
@@ -311,15 +312,31 @@ func (m *MarkdownFileRecord) PrependWrapper(content string) {
 /* End of modified record.go code */
 /* ============================== */
 
+// Rewrite a line in a file
+func rewriteMarkdownLine(line int, replacement string, md_file_path string) {
+	input, err := ioutil.ReadFile(md_file_path)
+	if err != nil {
+		fmt.Println("[ERROR] There was an error opening the file")
+	}
+	contents := strings.Split(string(input), "\n")
+	contents[line] = replacement
+	output := strings.Join(contents, "\n")
+	err = ioutil.WriteFile(md_file_path, []byte(output), 0644)
+	if err != nil {
+		fmt.Println("[ERROR] There was an error writing the file")
+	}
+	return
+}
+
 // General function for regex
-func regex_line_of_markdown(contents []string, regex string, variable string, line int) (value []string, line_number int) {
+func regex_line_of_markdown(md_file_path string, contents []string, regex string, variable string, line int) (value []string, line_number int) {
 	if strings.Index(contents[line], variable) >= 0 {
 		re := regexp.MustCompile(regex)
 		value = re.FindAllString(contents[line], -1)
 		// if we find it, move down two lines since every line in between new paragraphs is blank in markdown
 		line_number = line + 2
 		// delete the line where information was copied
-		contents[line] = ""
+		rewriteMarkdownLine(line, "", md_file_path)
 		return
 	}
 	value = append(value, "")
@@ -340,19 +357,19 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	var i int
 	var tags []string
 	i = 0
-	tags, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)`, "DRVRKR\\_TAGS", i)
+	tags, i = regex_line_of_markdown(md_file_path, markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)`, "DRVRKR\\_TAGS", i)
 	// Now find the DRVRKR\_CATEGORIES
 	var categories []string
-	categories, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_CATEGORIES)](\w+)`, "DRVRKR\\_CATEGORIES", i)
+	categories, i = regex_line_of_markdown(md_file_path, markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_CATEGORIES)](\w+)`, "DRVRKR\\_CATEGORIES", i)
 	// Now find the DRVRKR\_PUB\_DATE
 	var publicationyearmonthdate []string
-	publicationyearmonthdate, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_PUB\\\_DATE)](\w+)`, "DRVRKR\\_PUB\\_DATE", i)
+	publicationyearmonthdate, i = regex_line_of_markdown(md_file_path, markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_PUB\\\_DATE)](\w+)`, "DRVRKR\\_PUB\\_DATE", i)
 	// Now find the DRVRKR\_UPDATE\_DATE
 	var updateyearmonthdate []string
-	updateyearmonthdate, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_UPDATE\\\_DATE)](\w+)`, "DRVRKR\\_UPDATE\\_DATE", i)
+	updateyearmonthdate, i = regex_line_of_markdown(md_file_path, markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_UPDATE\\\_DATE)](\w+)`, "DRVRKR\\_UPDATE\\_DATE", i)
 	// Now find the cover photo for the article
 	var imagenames []string
-	imagenames, i = regex_line_of_markdown(markdownfile.Contents, `(\w+.png)`, `<img src=`, i)
+	imagenames, i = regex_line_of_markdown(md_file_path, markdownfile.Contents, `(\w+.png)`, `<img src=`, i)
 	imagename := imagenames[1]
 	cover_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + imagename
 	//fmt.Println("image path before: " + "\"" + cover_image_path_before + "\"")
@@ -371,13 +388,13 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	//imagecaption, i = regex_line_of_markdown(markdownfile.Contents, `##### +(.*)`, `#####`, i)
 	// Now find the headline of the article
 	var title []string
-	title, i = regex_line_of_markdown(markdownfile.Contents, `# +(.*)`, `#`, i)
+	title, i = regex_line_of_markdown(md_file_path, markdownfile.Contents, `# +(.*)`, `#`, i)
 	// Find the subtitle
 	var subtitle []string
-	subtitle, i = regex_line_of_markdown(markdownfile.Contents, `# +(.*)`, `##`, i)
+	subtitle, i = regex_line_of_markdown(md_file_path, markdownfile.Contents, `# +(.*)`, `##`, i)
 	// Find the authors on the byline
 	var author_names []string
-	author_names, i = regex_line_of_markdown(markdownfile.Contents, `[^(####By |,and|,)](?:By | and)*?(\w+.\w+)`, `#### By`, i)
+	author_names, i = regex_line_of_markdown(md_file_path, markdownfile.Contents, `[^(####By |,and|,)](?:By | and)*?(\w+.\w+)`, `#### By`, i)
 	// For-loop through the rest of the document looking for in-line images
 	// in-line headers are taken care of on frontend by hugo's theme
 	// in-line captions are taken care of on frontend by hugo's theme
@@ -402,7 +419,8 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 			regex_alt_text := regexp.MustCompile(`##### +(.*)`)
 			alt_text := regex_alt_text.FindAllString(markdownfile.Contents[j+2], -1)
 			// Rewrite the inline image to have a css class called inline-image
-			markdownfile.Contents[j] = "<img src= \"" + inline_image_path_after + "\" alt=\"" + alt_text[0] + "\" class=\"inline-image\">"
+			markdownfilenewline := "<img src= \"" + inline_image_path_after + "\" alt=\"" + alt_text[0] + "\" class=\"inline-image\">"
+			rewriteMarkdownLine(j, markdownfilenewline, md_file_path)
 		}
 	}
 	// Now prepend the hugo JSON front-matter to the file
