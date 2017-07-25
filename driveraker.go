@@ -231,7 +231,7 @@ func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string,
 	convert.Dir = "/"
 	out, err := convert.CombinedOutput()
 	if err != nil {
-		fmt.Println("[ERROR] Error converting files to markdown with pandoc: ", err)
+		fmt.Println("[ERROR] Error converting files to markdown with pandoc: ", err )
 	}
 	fmt.Printf("pandoc: " + string(out) + "\n")
 	pandoc.Done()
@@ -506,7 +506,7 @@ func main() {
 	fmt.Println("Converting synced docx files into markdown files...")
 	for i := 0; i < len(docx_file_paths); i++ {
 		docx_file_path := docx_file_paths[i]
-		docx_file_path = strings.Replace(docx_file_path, `to '`, ``, -1)
+		docx_file_path = strings.Replace(docx_file_path, ` to '`, ``, -1)
 		docx_file_path = strings.Replace(docx_file_path, `docx'`, `docx`, -1)
 		fmt.Println("Converting " + docx_file_path)
 		name_regex := regexp.MustCompile(`(\w+)(?:.docx)`)
