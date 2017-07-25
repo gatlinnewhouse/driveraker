@@ -356,15 +356,14 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	imagename := imagenames[1]
 	cover_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + imagename
 	fmt.Println("image path before:" + "\"" + cover_image_path_before + "\"")
-	cover_image_path_after := hugo_dir + "/static/images/" + imagename
+	cover_image_path_after := hugo_dir + "static/images/" + imagename
 	fmt.Println("image path after:" + "\"" + cover_image_path_after + "\"")
 	copy_cover_image := exec.Command("cp", cover_image_path_before, cover_image_path_after)
 	copy_cover_image.Dir = cover_image_path_before
 	fmt.Println("Moving inline image to hugo directory...")
-	out, err := copy_cover_image.Output()
+	out, err := copy_cover_image.CombinedOutput()
 	if err != nil {
 		fmt.Println("[ERROR] Error moving " + imagename +": ", err)
-		return
 	}
 	fmt.Println("Moved the image: ", out)
 	// Now find the image caption
@@ -387,7 +386,7 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 			re2 := regexp.MustCompile(`(\w+.png)`)
 			inline_image := re2.FindAllString(markdownfile.Contents[j], -1)
 			inline_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + inline_image[1]
-			inline_image_path_after := hugo_dir + "/static/images/" + inline_image[1]
+			inline_image_path_after := hugo_dir + "static/images/" + inline_image[1]
 			copy_image := exec.Command("cp", inline_image_path_before, inline_image_path_after)
 			copy_image.Dir = "/"
 			fmt.Println("Moving inline image to hugo directory...")
