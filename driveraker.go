@@ -313,7 +313,7 @@ func (m *MarkdownFileRecord) PrependWrapper(content string) {
 /* ============================== */
 
 // Rewrite a line in a file
-func rewriteMarkdownLine(line int, replacement string, md_file_path string) {
+func rewriteMarkdownLine(line int, replacement string, md_file_path string, rewritemarkdown *sync.WaitGroup) {
 	input, err := ioutil.ReadFile(md_file_path)
 	if err != nil {
 		fmt.Println("[ERROR] There was an error opening the file")
@@ -325,18 +325,21 @@ func rewriteMarkdownLine(line int, replacement string, md_file_path string) {
 	if err != nil {
 		fmt.Println("[ERROR] There was an error writing the file")
 	}
-	return
+	rewritemarkdown.Done()
 }
 
 // General function for regex
 func regex_line_of_markdown(md_file_path string, contents []string, regex string, variable string, line int) (value []string, line_number int) {
+	var rewritefile sync.WaitGroup
 	if strings.Index(contents[line], variable) >= 0 {
+		rewritefile.Add(1)
 		re := regexp.MustCompile(regex)
 		value = re.FindAllString(contents[line], -1)
 		// if we find it, move down two lines since every line in between new paragraphs is blank in markdown
 		line_number = line + 2
 		// delete the line where information was copied
-		rewriteMarkdownLine(line, "", md_file_path)
+		rewriteMarkdownLine(line, "", md_file_path, &rewritefile)
+		rewritefile.Wait()
 		return
 	}
 	value = append(value, "")
@@ -398,8 +401,10 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	// For-loop through the rest of the document looking for in-line images
 	// in-line headers are taken care of on frontend by hugo's theme
 	// in-line captions are taken care of on frontend by hugo's theme
+	var rewriteimageline sync.WaitGroup
 	for j := i; j < len(markdownfile.Contents); j++ {
 		if strings.Index(markdownfile.Contents[j], `<img src=`) >= 0 {
+			rewriteimageline.Add(1)
 			re2 := regexp.MustCompile(`(\w+.png)`)
 			inline_image := re2.FindAllString(markdownfile.Contents[j], -1)
 			inline_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + inline_image[1]
@@ -417,14 +422,16 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 			fmt.Println("Writing a new inline-image path for " + md_file_path)
 			// Use the image caption as the alt text for the inline-image
 			regex_alt_text := regexp.MustCompile(`##### +(.*)`)
-			alt_text := regex_alt_text.FindAllString(markdownfile.Contents[j+2], -1)
+			alt_text := regex_alt_text.FindAllString(markdownfile.Contents[j+1], -1)
 			// Rewrite the inline image to have a css class called inline-image
 			markdownfilenewline := "<img src= \"" + inline_image_path_after + "\" alt=\"" + alt_text[0] + "\" class=\"inline-image\">"
-			rewriteMarkdownLine(j, markdownfilenewline, md_file_path)
+			rewriteMarkdownLine(j, markdownfilenewline, md_file_path, &rewriteimageline)
+			rewriteimageline.Wait()
 		}
 	}
 	// Now prepend the hugo JSON front-matter to the file
 	// they will need to be prepended backwards
+	fmt.Println("Prepending the hugo headers to the markdown file...")
 	markdownfile.PrependWrapper("}")
 	// Add authors to hugo front-matter
 	author_list := fmt.Sprintf("%f", author_names)
@@ -484,6 +491,7 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	markdownfile.PrependWrapper("    \"title\": " + headline)
 	// End the hugo JSON front-matter
 	markdownfile.PrependWrapper("{")
+	fmt.Println("Done!")
 	front_matter.Done()
 }
 
