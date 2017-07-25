@@ -202,7 +202,7 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, drive_sync *syn
 		fmt.Println("[ERROR] Error syncing Google Drive: ", err)
 		return
 	}
-	fmt.Println("drive: " + string(out))
+	fmt.Printf("drive: " + string(out))
 	fmt.Println("Done syncing!")
 	sync_gd.Add(1)
 	go interpret_drive_output(sync_gd, output, file_paths)
@@ -215,7 +215,7 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, drive_sync *syn
 
 // Find all Exported file paths via a regex expression and then add them to an array
 func interpret_drive_output(sync_gd *sync.WaitGroup, output chan string, file_paths chan []string) {
-	fmt.Println("Interpreting command line output")
+	fmt.Println("Interpreting command line output...")
 	results := <-output
 	re := regexp.MustCompile(`[^'](?:to ')(.*?)'`)
 	matches := re.FindAllString(results, -1)
@@ -227,13 +227,13 @@ func interpret_drive_output(sync_gd *sync.WaitGroup, output chan string, file_pa
 
 // Convert from docx to markdown with pandoc
 func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string, pandoc *sync.WaitGroup) {
-	convert := exec.Command("/usr/bin/pandoc", "--verbose", "--atx-headers", "--smart", "--normalize", "--email-obfuscation=references", "--mathjax", "-t", "markdown_strict", "-o", md_file_path, docx_file_path)
-	convert.Dir = path.Dir(docx_file_path) + "/"
-	out, err := convert.Output()
+	convert := exec.Command("/usr/bin/pandoc", "--atx-headers", "--smart", "--normalize", "--email-obfuscation=references", "--mathjax", "-t", "markdown_strict", "-o", md_file_path, docx_file_path)
+	convert.Dir = "/"
+	out, err := convert.CombinedOutput()
 	if err != nil {
 		fmt.Println("[ERROR] Error converting files to markdown with pandoc: ", err)
 	}
-	fmt.Println("pandoc: ", out)
+	fmt.Printf("pandoc: " + string(out) + "\n")
 	pandoc.Done()
 }
 
@@ -357,7 +357,7 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	cover_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + imagename
 	cover_image_path_after := hugo_dir + "/static/images/" + imagename
 	copy_cover_image := exec.Command("cp", cover_image_path_before, cover_image_path_after)
-	copy_cover_image.Dir = cover_image_path_before
+	copy_cover_image.Dir = "/"
 	fmt.Println("Moving inline image to hugo directory...")
 	out, err := copy_cover_image.Output()
 	if err != nil {
@@ -387,7 +387,7 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 			inline_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + inline_image[1]
 			inline_image_path_after := hugo_dir + "/static/images/" + inline_image[1]
 			copy_image := exec.Command("cp", inline_image_path_before, inline_image_path_after)
-			copy_image.Dir = inline_image_path_before
+			copy_image.Dir = "/"
 			fmt.Println("Moving inline image to hugo directory...")
 			out, err := copy_image.Output()
 			if err != nil {
