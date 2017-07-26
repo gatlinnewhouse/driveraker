@@ -297,7 +297,7 @@ func regex_line_of_markdown(contents []string, regex string, variable string, li
 	if strings.Index(contents[line], variable) >= 0 {
 		re := regexp.MustCompile(regex)
 		value = re.FindAllString(contents[line], -1)
-		// if we find it, move down two lines since every line in between new paragraphs is blank in markdown
+		// if we find it, move down a line
 		line_number = line + 2
 		// delete the line where information was copied
 		return
@@ -322,7 +322,7 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	var tags []string
 	i = 0 // For the reading line
 	k = 0 // For the writing line
-	replacementline := "{\n"
+	replacementline := "{"
 	// Find the substrings for driveraker tags/categories, titles, subtitles, image captions, in-article headers, and bylines below:
 	tags, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)`, "DRVRKR\\_TAGS", i)
 	tag_list := fmt.Sprintf("%f", tags)
@@ -332,10 +332,12 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	tag_list = "    \"tags\": " + tag_list
 	// Write front-matter tag list and begin JSON front
 	if i > k {
-		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(replacementline + tag_list + "\n"), md_file_path, &frontmatter)
+		frontmatter.Add(2)
+		rewriteMarkdownLine(k, replacementline, md_file_path, &frontmatter)
+		k = k + 1
+		rewriteMarkdownLine(k, tag_list, md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 1
 	}
 	// Now find the DRVRKR\_CATEGORIES
 	frontmatter.Add(1)
@@ -349,21 +351,22 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	// Draft status
 	draft_status := "    \"draft\": \"false\""
 	// Write front-matter category list and draft status
-	if i = 1 {
-		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(replacementline + cat_list + "\n" + draft_status + "\n"), md_file_path, &frontmatter)
+	if i == 0 {
+		frontmatter.Add(2)
+		rewriteMarkdownLine(k, replacementline, md_file_path, &frontmatter)
+		k = k + 1
+		rewriteMarkdownLine(k, fmt.Sprintf(cat_list + "\n" + draft_status), md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 2
+		i = i + 1
 	} else if i > k {
-		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(cat_list + "\n" + draft_status + "\n"), md_file_path, &frontmatter)
+		frontmatter.Add(2)
+		rewriteMarkdownLine(k, cat_list, md_file_path, &frontmatter)
+		k = k + 1
+		rewriteMarkdownLine(k, draft_status, md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
-	} else if i = k {
-		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(draft_status + "\n"), md_file_path, &frontmatter)
-		frontmatter.Wait()
-	}
+		k = k + 1
+	} 
 	// Now find the DRVRKR\_PUB\_DATE
 	var publicationyearmonthdate []string
 	publicationyearmonthdate, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_PUB\\\_DATE)](\w+)`, "DRVRKR\\_PUB\\_DATE", i)
@@ -376,16 +379,21 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	frontmatterdate := "    \"date\": " + pub_date
 	pub_date = "    \"publishDate\": " + pub_date
 	// Write front-matter publication date and date
-	if i = 1 {
-		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(replacementline + frontmatterdate + "\n" + pub_date + "\n"), md_file_path, &frontmatter)
+	if i == 0 {
+		frontmatter.Add(2)
+		rewriteMarkdownLine(k, replacementline, md_file_path, &frontmatter)
+		k = k + 1
+		rewriteMarkdownLine(k, fmt.Sprintf(frontmatterdate + "\n" + pub_date), md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 2
+		i = i + 1
 	} else if i > k {
-		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(frontmatterdate + "\n" + pub_date + "\n"), md_file_path, &frontmatter)
+		frontmatter.Add(2)
+		rewriteMarkdownLine(k, frontmatterdate, md_file_path, &frontmatter)
+		k = k + 1
+		rewriteMarkdownLine(k, pub_date, md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 1
 	}
 	// Now find the DRVRKR\_UPDATE\_DATE
 	var updateyearmonthdate []string
@@ -398,16 +406,18 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	mod_date = strings.Replace(mod_date, ` `, `-`, -1)
 	mod_date = "    \"lastmod\": " + mod_date
 	// Write front-matter last modified date
-	if i = 1 {
-		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(replacementline + mod_date + "\n"), md_file_path, &frontmatter)
+	if i == 0 {
+		frontmatter.Add(2)
+		rewriteMarkdownLine(k, replacementline, md_file_path, &frontmatter)
+		k = k + 1
+		rewriteMarkdownLine(k, mod_date, md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 1
 	} else if i > k {
 		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(mod_date + "\n"), md_file_path, &frontmatter)
+		rewriteMarkdownLine(k, mod_date, md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 2
 	}
 	// Now find the cover photo for the article
 	var imagenames []string
@@ -427,17 +437,22 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	fmt.Println("Moved the image: ", out)
 	frontmatterimage := "    \"image\": \"" + imagename + "\""
 	// Write front-matter image
-	if i = 1 {
-		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(replacementline + imagename + "\n"), md_file_path, &frontmatter)
+	if i == 0 {
+		frontmatter.Add(2)
+		rewriteMarkdownLine(k, replacementline, md_file_path, &frontmatter)
+		k = k + 1
+		rewriteMarkdownLine(k, frontmatterimage, md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 1
 	} else if i > k {
 		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(imagename + "\n"), md_file_path, &frontmatter)
+		rewriteMarkdownLine(k, fmt.Sprintf(frontmatterimage), md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 2
 	}
+	// Caption for image
+	i = i + 2
+	k = k + 2
 	// Now find the headline of the article
 	var title []string
 	title, i = regex_line_of_markdown(markdownfile.Contents, `# +(.*)`, `#`, i)
@@ -448,16 +463,18 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	headline = strings.Replace(headline, `]`, `"`, -1)
 	headline = "    \"title\": " + headline
 	// Write front-matter title
-	if i = 1 {
-		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(replacementline + mod_date + "\n"), md_file_path, &frontmatter)
+	if i == 0 {
+		frontmatter.Add(2)
+		rewriteMarkdownLine(k, replacementline, md_file_path, &frontmatter)
+		k = k + 1
+		rewriteMarkdownLine(k, headline, md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 1
 	} else if i > k {
 		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(mod_date + "\n"), md_file_path, &frontmatter)
+		rewriteMarkdownLine(k, headline, md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 2
 	}
 	// Find the subtitle
 	var subtitle []string
@@ -469,16 +486,18 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	description = strings.Replace(description, `]`, `"`, -1)
 	description = "    \"description\": " + description
 	// Write front-matter description
-	if i = 1 {
-		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(replacementline + description + "\n"), md_file_path, &frontmatter)
+	if i == 0 {
+		frontmatter.Add(2)
+		rewriteMarkdownLine(k, replacementline, md_file_path, &frontmatter)
+		k = k + 1
+		rewriteMarkdownLine(k, description, md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 1
 	} else if i > k {
 		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(description + "\n"), md_file_path, &frontmatter)
+		rewriteMarkdownLine(k, fmt.Sprintf(description), md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 2
 	}
 	// Find the authors on the byline
 	var author_names []string
@@ -489,16 +508,21 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	author_list = strings.Replace(author_list, `)`, `"`, -1)
 	author_list = "    \"authors\": " + author_list
 	// Write front-matter authors
-	if i = 1 {
-		frontmatter.Add(1)
-		rewriteMarkdownLine(k, fmt.Sprintf(replacementline + author_list + "\n" + "}\n"), md_file_path, &frontmatter)
-		frontmatter.Wait()
-		k = i
-	} else if i > k {
-		frontmatter.Add(1)
+	if i == 0 {
+		frontmatter.Add(2)
+		rewriteMarkdownLine(k, replacementline, md_file_path, &frontmatter)
+		k = k + 1
 		rewriteMarkdownLine(k, fmt.Sprintf(author_list + "\n" + "}\n"), md_file_path, &frontmatter)
 		frontmatter.Wait()
-		k = i
+		k = k + 2
+		i = i + 1
+	} else if i > k {
+		frontmatter.Add(2)
+		rewriteMarkdownLine(k, author_list, md_file_path, &frontmatter)
+		k = k + 1
+		rewriteMarkdownLine(k, "}", md_file_path, &frontmatter)
+		frontmatter.Wait()
+		k = k + 1
 	}
 	// For-loop through the rest of the document looking for in-line images
 	// in-line headers are taken care of on frontend by hugo's theme
