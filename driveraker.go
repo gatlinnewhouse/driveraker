@@ -267,9 +267,8 @@ func (m *MarkdownFileRecord) readMarkdownLines() error {
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		if tmp := scanner.Text(); len(tmp) != 0 {
-			m.Contents = append(m.Contents, tmp)
-		}
+		tmp := scanner.Text()
+		m.Contents = append(m.Contents, tmp)
 	}
 	f.Close()
 	return nil
@@ -302,12 +301,12 @@ func (m *MarkdownFileRecord) Prepend(content []string) error {
 	return nil
 }
 
-func (m *MarkdownFileRecord) prependWrapper(content []string) {
+func (m *MarkdownFileRecord) prependWrapper(content []string, prepend *sync.WaitGroup) {
 	err := m.Prepend(content)
 	if err != nil {
 		fmt.Println("[ERROR] Error prepending hugo front-matter to document: ", err)
 	}
-	return
+	prepend.Done()
 }
 /* ================================================================================================ */
 /* End of modified record.go code.                                                                  */
@@ -484,8 +483,9 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	var title []string
 	title, i = regex_line_of_markdown(markdownfile.Contents, `# +(.*)`, `#`, i)
 	headline := fmt.Sprintf("%f", title)
-	headline = strings.Replace(headline, `%!f(string= `, ``, -1)
+	headline = strings.Replace(headline, `%!f(string=# `, ``, -1)
 	headline = strings.Replace(headline, `)`, ``, -1)
+	headline = strings.Replace(headline, `(`, ``, -1)
 	headline = strings.Replace(headline, `[`, `"`, -1)
 	headline = strings.Replace(headline, `]`, `"`, -1)
 	headline = "    \"title\": " + headline
@@ -494,8 +494,9 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	var subtitle []string
 	subtitle, i = regex_line_of_markdown(markdownfile.Contents, `# +(.*)`, `##`, i)
 	description := fmt.Sprintf("%f", subtitle)
-	description = strings.Replace(description, `%!f(string= `, ``, -1)
+	description = strings.Replace(description, `%!f(string=# `, ``, -1)
 	description = strings.Replace(description, `)`, ``, -1)
+	description = strings.Replace(description, `(`, ``, -1)
 	description = strings.Replace(description, `[`, `"`, -1)
 	description = strings.Replace(description, `]`, `"`, -1)
 	description = "    \"description\": " + description
@@ -512,13 +513,34 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	hugoFrontMatter = append(hugoFrontMatter, "}")
 	hugoFrontMatter = append(hugoFrontMatter, "")
 	hugoFrontMatter = append(hugoFrontMatter, frontmattercaption)
-	fmt.Println(hugoFrontMatter)
-	fmt.Println(i)
+	hugoFrontMatter = append(hugoFrontMatter, "")
+	// Delete deprecated lines
+	var deleteline sync.WaitGroup
+	for k := 0; k < i; k++ {
+		deleteline.Add(1)
+		deleteLineWrapper(md_file_path, &deleteline)
+		deleteline.Wait()
+	}
+	// Now write the hugo front-matter to the file
+	var prepend sync.WaitGroup
+	prepend.Add(1)
+	markdownfile = NewMarkdownFile(md_file_path)
+	err = markdownfile.readMarkdownLines()
+	if err != nil {
+		fmt.Println("[ERROR] Error reading lines from the markdown file: ", err)
+	}
+	markdownfile.prependWrapper(hugoFrontMatter, &prepend)
+	prepend.Wait()
 	// For-loop through the rest of the document looking for in-line images
 	// in-line headers are taken care of on frontend by hugo's theme
 	// in-line captions are taken care of on frontend by hugo's theme
 	var rewriteimageline sync.WaitGroup
-	for j := i; j < len(markdownfile.Contents); j++ {
+	for j := 0; j < len(markdownfile.Contents); j++ {
+		markdownfile = NewMarkdownFile(md_file_path)
+		err = markdownfile.readMarkdownLines()
+		if err != nil {
+			fmt.Println("[ERROR] Error reading lines from the markdown file: ", err)
+		}
 		if strings.Index(markdownfile.Contents[j], `<img src=`) >= 0 {
 			rewriteimageline.Add(1)
 			re2 := regexp.MustCompile(`(\w+.png)`)
@@ -538,22 +560,15 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 			fmt.Println("Writing a new inline-image path for " + md_file_path)
 			// Use the image caption as the alt text for the inline-image
 			regex_alt_text := regexp.MustCompile(`##### +(.*)`)
-			alt_text := regex_alt_text.FindAllString(markdownfile.Contents[j+1], -1)
+			alt_texts := regex_alt_text.FindAllString(markdownfile.Contents[j + 2], -1)
+			alt_text := strings.Replace(alt_texts[0], `##### `, ``, -1)
 			// Rewrite the inline image to have a css class called inline-image
-			newimageinline := "<img src= \"" + inline_image_path_after + "\" alt=\"" + alt_text[0] + "\" class=\"inline-image\">"
+			newimageinline := "<img src= \"" + inline_image_path_after + "\" alt=\"" + alt_text + "\" class=\"inline-image\">"
 			go rewriteMarkdownLine(j, newimageinline, md_file_path, &rewriteimageline)
+			rewriteimageline.Wait()
+			j = j + 2
 		}
 	}
-	rewriteimageline.Wait()
-	// Delete deprecated lines
-	var deleteline sync.WaitGroup
-	for k := 0; k <= i; k++ {
-		deleteline.Add(1)
-		deleteLineWrapper(md_file_path, &deleteline)
-		deleteline.Wait()
-	}
-	// Now write the hugo front-matter to the file
-	markdownfile.prependWrapper(hugoFrontMatter)
 	fmt.Println("Done!")
 	front_matter.Done()
 }
