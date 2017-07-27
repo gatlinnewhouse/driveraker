@@ -166,6 +166,7 @@ type Configuration struct {
 	DriveSyncDirectory         string
 	GoogleDriveRemoteDirectory string
 	HugoPostDirectory          string
+	NginxDirectory             string
 }
 
 // Read the configuration JSON file in order to get some settings and directories
@@ -185,6 +186,8 @@ func read_cfg(filename string, conf *sync.WaitGroup, conf_message chan string) {
 	conf_message <- drive_remote_dir
 	hugo_post_dir := fmt.Sprintf(configuration.HugoPostDirectory)
 	conf_message <- hugo_post_dir
+	nginx_dir := fmt.Sprintf(configuration.NginxDirectory)
+	conf_message <- nginx_dir
 	fmt.Println("Finished reading configuration!")
 	conf.Done()
 }
@@ -402,7 +405,7 @@ func regex_line_of_markdown(contents []string, regex string, variable string, li
 }
 
 // Read markdown document and write the hugo headers to the beginning of the document
-func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string, hugo_dir string, front_matter *sync.WaitGroup) {
+func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string, hugo_dir string, nginx_dir string, front_matter *sync.WaitGroup) {
 	markdownfile := NewMarkdownFile(md_file_path)
 	err := markdownfile.readMarkdownLines()
 	if err != nil {
@@ -555,6 +558,8 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 			}
 			fmt.Println("Moving the image: ", out)
 			fmt.Println("Done moving " + inline_image[1])
+			// Before writing the new line make sure that the path points to the production directory
+			inline_image_path_after = nginx_dir + "public/images/" + inline_image[1]
 			fmt.Println("Writing a new inline-image path for " + md_file_path)
 			// Use the image caption as the alt text for the inline-image
 			regex_alt_text := regexp.MustCompile(`##### +(.*)`)
@@ -593,6 +598,7 @@ func main() {
 	drive_sync_dir := <-conf_message
 	drive_remote_dir := <-conf_message
 	hugo_post_dir := <-conf_message
+	nginx_dir := <-conf_message
 	conf.Wait()
 	// Sync Google Drive
 	docx_paths_message := make(chan []string)
@@ -625,7 +631,7 @@ func main() {
 	frontmatter.Add(len(markdown_paths))
 	fmt.Println("Adding hugo front-matter to markdown files...")
 	for i := 0; i < len(markdown_paths); i++ {
-		go read_markdown_write_hugo_headers(markdown_paths[i], docx_file_paths[i], hugo_post_dir, &frontmatter)
+		go read_markdown_write_hugo_headers(markdown_paths[i], docx_file_paths[i], hugo_post_dir, nginx_dir, &frontmatter)
 	}
 	frontmatter.Wait()
 }
