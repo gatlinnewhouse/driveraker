@@ -257,14 +257,13 @@ func NewMarkdownFile(filename string) *MarkdownFileRecord {
 
 func (m *MarkdownFileRecord) readMarkdownLines() error {
 	if _, err := os.Stat(m.Filename); err != nil {
-		return err
+		return nil
 	}
 	f, err := os.OpenFile(m.Filename, os.O_RDONLY, 0600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		tmp := scanner.Text()
@@ -297,12 +296,11 @@ func (m *MarkdownFileRecord) Prepend(content []string) error {
 	if err := writer.Flush(); err != nil {
 		return err
 	}
-	f.Close()
 	return nil
 }
 
-func (m *MarkdownFileRecord) prependWrapper(content []string, prepend *sync.WaitGroup) {
-	err := m.Prepend(content)
+func prependWrapper(content []string, md_file_path string, prepend *sync.WaitGroup) {
+	err := NewMarkdownFile(md_file_path).Prepend(content)
 	if err != nil {
 		fmt.Println("[ERROR] Error prepending hugo front-matter to document: ", err)
 	}
@@ -529,7 +527,7 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	if err != nil {
 		fmt.Println("[ERROR] Error reading lines from the markdown file: ", err)
 	}
-	markdownfile.prependWrapper(hugoFrontMatter, &prepend)
+	go prependWrapper(hugoFrontMatter, md_file_path, &prepend)
 	prepend.Wait()
 	// For-loop through the rest of the document looking for in-line images
 	// in-line headers are taken care of on frontend by hugo's theme
