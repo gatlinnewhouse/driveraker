@@ -3,14 +3,14 @@ package main
 import (
 	"bufio"
 	"bytes"
-	//	"crypto/md5"
-	//	"encoding/hex"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
-	//	"errors"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	//	"log"
+	"log"
 	"os"
 	"os/exec"
 	"os/user"
@@ -18,7 +18,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	//	"time"
+	"time"
 )
 
 /* ========================= */
@@ -26,7 +26,6 @@ import (
 /* from github.com/nf/goto   */
 /* ========================= */
 
-/* not needed right now
 const (
 	saveTimeout     = 10e9
 	saveQueueLength = 1000
@@ -163,10 +162,10 @@ func (s *PathStore) saveLoop(filename string) {
 
 // The configuration file struct
 type Configuration struct {
-	DriveSyncDirectory         string
-	GoogleDriveRemoteDirectory string
-	HugoPostDirectory          string
-	NginxDirectory             string
+	DriveSyncDirectory              string
+	GoogleDriveRemoteDirectory      string
+	HugoPostDirectory               string
+	ProductionDirectory             string
 }
 
 // Read the configuration JSON file in order to get some settings and directories
@@ -246,6 +245,7 @@ func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string,
 /* The following code forked from:                                     */
 /* https://gist.github.com/toruuetani/f6aa4751a66ef65646c1a4934471396b */
 /* =================================================================== */
+
 type MarkdownFileRecord struct {
 	Filename string
 	Contents []string
@@ -309,11 +309,13 @@ func prependWrapper(content []string, md_file_path string, prepend *sync.WaitGro
 	}
 	prepend.Done()
 }
+
 /* ================================================================================================ */
 /* End of modified record.go code.                                                                  */
 /* Beginning of forked popline.go code from:                                                        */
 /* https://stackoverflow.com/questions/30940190/remove-first-line-from-text-file-in-golang#30948278 */
 /* ================================================================================================ */
+
 func deleteLine(f *os.File) ([]byte, error) {
 	fi, err := f.Stat()
 	if err != nil {
@@ -369,6 +371,7 @@ func deleteLineWrapper(md_file_path string, deleteline *sync.WaitGroup) {
 	f.Close()
 	deleteline.Done()
 }
+
 /* =============================== */
 /* End of modified popline.go code */
 /* =============================== */
@@ -576,8 +579,26 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	front_matter.Done()
 }
 
-// Use hugo to compile the markdown files into html and then serve with hugo or with nginx
-func compile_and_serve_hugo_site(hugo_dir string, prod_dir string, use_hugo bool, wg *sync.WaitGroup) {
+// Use hugo to compile the markdown files into html and then move the files to the production directory, i.e. where nginx or apache serve files
+// Make sure to chown or chmod the production directory before running driveraker
+func compile_and_serve_hugo_site(hugo_dir string, prod_dir string, serve *sync.WaitGroup) {
+	compile := exec.Command("/usr/bin/hugo")
+	compile.Dir = hugo_dir
+	out, err := compile.Output()
+	if err != nil {
+		fmt.Println("[ERROR] Error compiling a website with hugo: ", err )
+	}
+	fmt.Println("hugo: ", out)
+	copyCompiledSite := exec.Command("/bin/cp", "-r", "-u", hugo_dir + "public/*", prod_dir)
+	copyCompiledSite.Dir = "/"
+	fmt.Println("Moving compiled hugo site to the production directory...")
+	out, err := copyCompiledSite.Output()
+	if err != nil {
+		fmt.Println("[ERROR] Error moving hugo compiled site to production directory: ", err)
+		return
+	}
+	fmt.Println("Moving the compiled hugo site: ", out)
+	serve.Done()
 }
 
 func main() {
@@ -598,7 +619,7 @@ func main() {
 	drive_sync_dir := <-conf_message
 	drive_remote_dir := <-conf_message
 	hugo_post_dir := <-conf_message
-	nginx_dir := <-conf_message
+	productionDirectory := <-conf_message
 	conf.Wait()
 	// Sync Google Drive
 	docx_paths_message := make(chan []string)
@@ -634,4 +655,16 @@ func main() {
 		go read_markdown_write_hugo_headers(markdown_paths[i], docx_file_paths[i], hugo_post_dir, nginx_dir, &frontmatter)
 	}
 	frontmatter.Wait()
+	// Serve the website by compiling the site with hugo and moving it to the production directory
+	var serveWebsite sync.WaitGroup
+	serveWebsite.Add(1)
+	go compile_and_serve_hugo_site(hugo_post_dir, productionDirectory, &serve)
+	serveWebsite.Wait()
+	// Send back a success message and code
+	fmt.Println("driveraker successfully synced, converted, and compiled Google Documents into a website")
+	fmt.Println("Thanks to other open source projects like:")
+	fmt.Println("* Emmanuel Odeke's drive command line client for Google Drive")
+	fmt.Println("* John MacFarlane's pandoc file converter")
+	fmt.Println("* And many more...")
+	os.Exit(0)
 }
