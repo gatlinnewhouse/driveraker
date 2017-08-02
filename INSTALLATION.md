@@ -63,7 +63,7 @@ Then visit `http://<YOUR-SERVER-IP>:80/` in your web-browser. You should see a p
 
 ## Installing [drive](https://github.com/odeke-em/drive)
 
-Install go with `sudo apt install golang` then set your gopath:
+Install go (at least version 1.8) with `sudo apt install golang` then set your gopath:
 
 ```bash
 cat << ! >> ~/.bashrc
@@ -84,6 +84,8 @@ Make a directory for syncing with `mkdir ~/gdrive` and then `cd ~/gdrive` into t
 Next run `drive init` and follow instructions given.
 
 ## Installing pandoc
+
+Install pandoc version 1.19.2.1 at least.
 
 ```bash
 sudo apt install pandoc
