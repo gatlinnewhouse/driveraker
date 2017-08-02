@@ -482,6 +482,7 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 	// Caption for image
 	var frontimagecaption []string
 	frontimagecaption, i = regexLineOfMarkdown(markdownfile.Contents, `##### +(.*)`, `#####`, i)
+	frontimagecaption[0] = strings.Replace(frontimagecaption[0], `##### `, ``, -1)
 	frontmattercaption := "<p class=\"front-matter-image-caption\">" + frontimagecaption[0] + "</p>"
 	// Now find the headline of the article
 	var title []string
