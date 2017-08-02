@@ -194,7 +194,7 @@ func readConfig(filename string, conf *sync.WaitGroup, confMessage chan string) 
 // Sync google drive remote folder to the configured local directory.
 // Then send the output from drive CLI to a function to intepret the output
 // by stripping the full output down to an array of string paths to docx files.
-func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, drive_sync *sync.WaitGroup, docxPathsMessage chan []string) {
+func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, driveSync *sync.WaitGroup, docxPathsMessage chan []string) {
 	syncGDrive := new(sync.WaitGroup)
 	output := make(chan string)
 	filePaths := make(chan []string)
@@ -214,7 +214,7 @@ func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, drive_sy
 	docxPaths := <-filePaths
 	syncGDrive.Wait()
 	docxPathsMessage <- docxPaths
-	drive_sync.Done()
+	driveSync.Done()
 }
 
 // Find all Exported file paths via a regex expression and then add them to an array
@@ -448,8 +448,8 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 	publicationDate = strings.Replace(publicationDate, `[`, `"`, -1)
 	publicationDate = strings.Replace(publicationDate, `]`, `"`, -1)
 	publicationDate = strings.Replace(publicationDate, ` `, `-`, -1)
-	hugoFrontMatter = append(hugoFrontMatter, "    \"date\": " + publicationDate + ",")
-	hugoFrontMatter = append(hugoFrontMatter, "    \"publishDate\": " + publicationDate + ",")
+	hugoFrontMatter = append(hugoFrontMatter, "    \"date\": "+publicationDate+",")
+	hugoFrontMatter = append(hugoFrontMatter, "    \"publishDate\": "+publicationDate+",")
 	// Now find the DRVRKR\_UPDATE\_DATE
 	var updateyearmonthdate []string
 	updateyearmonthdate, i = regexLineOfMarkdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_UPDATE\\\_DATE)](\w+)`, "DRVRKR\\_UPDATE\\_DATE", i)
@@ -474,7 +474,7 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 	fmt.Println("Moving inline image to hugo directory...")
 	out, err := copyCoverImage.CombinedOutput()
 	if err != nil {
-		fmt.Println("[ERROR] Error moving " + imagename + ": ", err)
+		fmt.Println("[ERROR] Error moving "+imagename+": ", err)
 	}
 	fmt.Println("Moved the image: ", out)
 	frontmatterimage := "    \"image\": \"" + imagename + "\","
@@ -507,9 +507,9 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 	description = "    \"description\": " + description + ","
 	hugoFrontMatter = append(hugoFrontMatter, description)
 	// Find the authors on the byline
-	var author_names []string
-	author_names, i = regexLineOfMarkdown(markdownfile.Contents, `[^(####By |,and|,)](?:By | and)*?(\w+.\w+)`, `#### By`, i)
-	authorList := fmt.Sprintf("%f", author_names)
+	var authorNames []string
+	authorNames, i = regexLineOfMarkdown(markdownfile.Contents, `[^(####By |,and|,)](?:By | and)*?(\w+.\w+)`, `#### By`, i)
+	authorList := fmt.Sprintf("%f", authorNames)
 	authorList = strings.Replace(authorList, `%!f(string=`, `"`, -1)
 	authorList = strings.Replace(authorList, `) `, `", `, -1)
 	authorList = strings.Replace(authorList, `)`, `"`, -1)
@@ -549,28 +549,28 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 		if strings.Index(markdownfile.Contents[j], `<img src=`) >= 0 {
 			rewriteimageline.Add(1)
 			re2 := regexp.MustCompile(`(\w+.png)`)
-			inline_image := re2.FindAllString(markdownfile.Contents[j], -1)
-			inline_image_path_before := path.Dir(path.Dir(docxFilePath)) + "/" + inline_image[1]
-			inline_image_path_after := hugoDirectory + "static/images/" + inline_image[1]
-			copy_image := exec.Command("/bin/cp", inline_image_path_before, inline_image_path_after)
-			copy_image.Dir = "/"
+			inlineImage := re2.FindAllString(markdownfile.Contents[j], -1)
+			inlineImagePathBefore := path.Dir(path.Dir(docxFilePath)) + "/" + inlineImage[1]
+			inlineImagePathAfter := hugoDirectory + "static/images/" + inlineImage[1]
+			copyImage := exec.Command("/bin/cp", inlineImagePathBefore, inlineImagePathAfter)
+			copyImage.Dir = "/"
 			fmt.Println("Moving inline image to hugo directory...")
-			out, err := copy_image.Output()
+			out, err := copyImage.Output()
 			if err != nil {
-				fmt.Println("[ERROR] Error moving"+inline_image[1]+": ", err)
+				fmt.Println("[ERROR] Error moving"+inlineImage[1]+": ", err)
 				return
 			}
 			fmt.Println("Moving the image: ", out)
-			fmt.Println("Done moving " + inline_image[1])
+			fmt.Println("Done moving " + inlineImage[1])
 			// Before writing the new line make sure that the path points to the production directory
-			inline_image_path_after = productionDirectory + "public/images/" + inline_image[1]
+			inlineImagePathAfter = productionDirectory + "public/images/" + inlineImage[1]
 			fmt.Println("Writing a new inline-image path for " + markdownFilePath)
 			// Use the image caption as the alt text for the inline-image
-			regex_alt_text := regexp.MustCompile(`##### +(.*)`)
-			alt_texts := regex_alt_text.FindAllString(markdownfile.Contents[j+2], -1)
-			alt_text := strings.Replace(alt_texts[0], `##### `, ``, -1)
+			regexAltText := regexp.MustCompile(`##### +(.*)`)
+			altTexts := regexAltText.FindAllString(markdownfile.Contents[j+2], -1)
+			altText := strings.Replace(altTexts[0], `##### `, ``, -1)
 			// Rewrite the inline image to have a css class called inline-image
-			newimageinline := "<img src=\"" + inline_image_path_after + "\" alt=\"" + alt_text + "\" class=\"inline-image\">"
+			newimageinline := "<img src=\"" + inlineImagePathAfter + "\" alt=\"" + altText + "\" class=\"inline-image\">"
 			go rewriteMarkdownLine(j, newimageinline, markdownFilePath, &rewriteimageline)
 			rewriteimageline.Wait()
 			j = j + 2
@@ -582,7 +582,7 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 
 // Use hugo to compile the markdown files into html and then move the files to the production directory, i.e. where nginx or apache serve files
 // Make sure to chown or chmod the production directory before running driveraker
-func compile_and_serve_hugo_site(hugoDirectory string, prod_dir string, serve *sync.WaitGroup) {
+func compileAndServeHugoSite(hugoDirectory string, productionDirectory string, serve *sync.WaitGroup) {
 	compile := exec.Command("/usr/bin/hugo")
 	compile.Dir = hugoDirectory
 	out, err := compile.Output()
@@ -590,7 +590,7 @@ func compile_and_serve_hugo_site(hugoDirectory string, prod_dir string, serve *s
 		fmt.Println("[ERROR] Error compiling a website with hugo: ", err)
 	}
 	fmt.Println("hugo: ", string(out))
-	copyCompiledSite := exec.Command("/bin/cp", "-r", "-u", hugoDirectory + "public/*", prod_dir)
+	copyCompiledSite := exec.Command("/bin/cp", "-r", "-u", hugoDirectory+"public/*", productionDirectory)
 	copyCompiledSite.Dir = "/"
 	fmt.Println("Moving compiled hugo site to the production directory...")
 	out, err = copyCompiledSite.Output()
@@ -610,12 +610,12 @@ func main() {
 		fmt.Println("[ERROR] driveraker could not get the user's home directory")
 	}
 	// Set the driveraker config path
-	driveraker_config := HOME + "/.config/driveraker/config"
+	driverakerConfigPath := HOME + "/.config/driveraker/config"
 	// Read the driveraker config
 	confMessage := make(chan string)
 	var conf sync.WaitGroup
 	conf.Add(1)
-	go readConfig(driveraker_config, &conf, confMessage)
+	go readConfig(driverakerConfigPath, &conf, confMessage)
 	// Set the configured paths
 	driveSyncDirectory := <-confMessage
 	driveRemoteDirectory := <-confMessage
@@ -624,12 +624,12 @@ func main() {
 	conf.Wait()
 	// Sync Google Drive
 	docxPathsMessage := make(chan []string)
-	var drive_sync sync.WaitGroup
-	drive_sync.Add(1)
-	go syncGoogleDrive(driveSyncDirectory, driveRemoteDirectory, &drive_sync, docxPathsMessage)
+	var driveSync sync.WaitGroup
+	driveSync.Add(1)
+	go syncGoogleDrive(driveSyncDirectory, driveRemoteDirectory, &driveSync, docxPathsMessage)
 	docxFilePaths := <-docxPathsMessage
 	fmt.Printf("docx file paths: %s \n", docxFilePaths)
-	drive_sync.Wait()
+	driveSync.Wait()
 	// Convert the docx files into markdown files
 	var pandoc sync.WaitGroup
 	pandoc.Add(len(docxFilePaths))
@@ -641,11 +641,11 @@ func main() {
 		docxFilePath = strings.Replace(docxFilePath, `docx'`, `docx`, -1)
 		docxFilePaths[i] = docxFilePath
 		fmt.Println("Converting " + docxFilePath)
-		name_regex := regexp.MustCompile(`(\w+)(?:.docx)`)
-		name := name_regex.FindAllString(docxFilePath, -1)
-		markdown_path := hugoPostDirectory + "content/articles/" + name[0] + ".md"
-		markdownPaths = append(markdownPaths, markdown_path)
-		go convertToMarkdownWithPandoc(docxFilePath, markdown_path, &pandoc)
+		nameRegex := regexp.MustCompile(`(\w+)(?:.docx)`)
+		name := nameRegex.FindAllString(docxFilePath, -1)
+		markdownPath := hugoPostDirectory + "content/articles/" + name[0] + ".md"
+		markdownPaths = append(markdownPaths, markdownPath)
+		go convertToMarkdownWithPandoc(docxFilePath, markdownPath, &pandoc)
 	}
 	pandoc.Wait()
 	// Add hugo front-matter to the files
@@ -659,7 +659,7 @@ func main() {
 	// Serve the website by compiling the site with hugo and moving it to the production directory
 	var serveWebsite sync.WaitGroup
 	serveWebsite.Add(1)
-	go compile_and_serve_hugo_site(hugoPostDirectory, productionDirectory, &serveWebsite)
+	go compileAndServeHugoSite(hugoPostDirectory, productionDirectory, &serveWebsite)
 	serveWebsite.Wait()
 	// Send back a success message and code
 	fmt.Println("driveraker successfully synced, converted, and compiled Google Documents into a website")
