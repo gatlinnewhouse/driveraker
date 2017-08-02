@@ -48,7 +48,7 @@ type record struct {
 }
 
 // Use md5 hash sums for the filepaths
-func md5hash(text string, DriveSyncDirectory string) string {
+func md5hash(text, DriveSyncDirectory string) string {
 	r := strings.NewReplacer(DriveSyncDirectory, "")
 	relativepath := r.Replace(text)
 	hasher := md5.New()
@@ -70,18 +70,18 @@ func NewPathStore(filename string) *PathStore {
 }
 
 // Check for a path in the hashtable
-func (s *PathStore) Get(key, path *string) bool {
+func (s *PathStore) Get(key, path *string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if p, okay := s.paths[*key]; ok {
-		*path = u
+	if p, okay := s.paths[*key]; okay {
+		*path = p
 		return nil
 	}
 	return errors.New("Key not found")
 }
 
 // Write a new path to the hashtable for an known key
-func (s *PathStore) Set(key, path *string) bool {
+func (s *PathStore) Set(key, path *string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, present := s.paths[*key]; present {
@@ -95,7 +95,7 @@ func (s *PathStore) Set(key, path *string) bool {
 // Write a new path to the hashtable without a known key
 func (s *PathStore) Put(path, DriveSyncDirectory, key *string) error {
 	for {
-		*key = md5hash(path, DriveSyncDirectory)
+		*key = md5hash(fmt.Sprintf("%s", path), fmt.Sprintf("%s", DriveSyncDirectory))
 		s.count++
 		if err := s.Set(key, path); err == nil {
 			break
@@ -162,14 +162,14 @@ func (s *PathStore) saveLoop(filename string) {
 
 // The configuration file struct
 type Configuration struct {
-	DriveSyncDirectory              string
-	GoogleDriveRemoteDirectory      string
-	HugoPostDirectory               string
-	ProductionDirectory             string
+	DriveSyncDirectory         string
+	GoogleDriveRemoteDirectory string
+	HugoPostDirectory          string
+	ProductionDirectory        string
 }
 
 // Read the configuration JSON file in order to get some settings and directories
-func read_cfg(filename string, conf *sync.WaitGroup, conf_message chan string) {
+func readConfig(filename string, conf *sync.WaitGroup, confMessage chan string) {
 	fmt.Println("Reading configuration...")
 	file, _ := os.Open(filename)
 	decoder := json.NewDecoder(file)
@@ -179,14 +179,14 @@ func read_cfg(filename string, conf *sync.WaitGroup, conf_message chan string) {
 		fmt.Println("[ERROR] Error reading the JSON confguration: ", err)
 		return
 	}
-	drive_sync_dir := fmt.Sprintf(configuration.DriveSyncDirectory)
-	conf_message <- drive_sync_dir
-	drive_remote_dir := fmt.Sprintf(configuration.GoogleDriveRemoteDirectory)
-	conf_message <- drive_remote_dir
-	hugo_post_dir := fmt.Sprintf(configuration.HugoPostDirectory)
-	conf_message <- hugo_post_dir
-	nginx_dir := fmt.Sprintf(configuration.NginxDirectory)
-	conf_message <- nginx_dir
+	driveSyncDirectory := fmt.Sprintf(configuration.DriveSyncDirectory)
+	confMessage <- driveSyncDirectory
+	driveRemoteDirectory := fmt.Sprintf(configuration.GoogleDriveRemoteDirectory)
+	confMessage <- driveRemoteDirectory
+	hugoPostDirectory := fmt.Sprintf(configuration.HugoPostDirectory)
+	confMessage <- hugoPostDirectory
+	productionDirectory := fmt.Sprintf(configuration.ProductionDirectory)
+	confMessage <- productionDirectory
 	fmt.Println("Finished reading configuration!")
 	conf.Done()
 }
@@ -194,12 +194,12 @@ func read_cfg(filename string, conf *sync.WaitGroup, conf_message chan string) {
 // Sync google drive remote folder to the configured local directory.
 // Then send the output from drive CLI to a function to intepret the output
 // by stripping the full output down to an array of string paths to docx files.
-func sync_google_drive(sync_dir string, drive_remote_dir string, drive_sync *sync.WaitGroup, docx_paths_message chan []string) {
-	sync_gd := new(sync.WaitGroup)
+func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, drive_sync *sync.WaitGroup, docxPathsMessage chan []string) {
+	syncGDrive := new(sync.WaitGroup)
 	output := make(chan string)
-	file_paths := make(chan []string)
-	sync := exec.Command("/usr/bin/drive", "pull", "-no-prompt", "-desktop-links=false", "-export", "docx", drive_remote_dir)
-	sync.Dir = sync_dir
+	filePaths := make(chan []string)
+	sync := exec.Command("/usr/bin/drive", "pull", "-no-prompt", "-desktop-links=false", "-export", "docx", driveRemoteDirectory)
+	sync.Dir = syncDirectory
 	fmt.Println("Syncing Google Drive...")
 	out, err := sync.Output()
 	if err != nil {
@@ -208,34 +208,34 @@ func sync_google_drive(sync_dir string, drive_remote_dir string, drive_sync *syn
 	}
 	fmt.Printf("drive: " + string(out))
 	fmt.Println("Done syncing!")
-	sync_gd.Add(1)
-	go interpret_drive_output(sync_gd, output, file_paths)
+	syncGDrive.Add(1)
+	go interpretDriveOutput(syncGDrive, output, filePaths)
 	output <- string(out)
-	docx_paths := <-file_paths
-	sync_gd.Wait()
-	docx_paths_message <- docx_paths
+	docxPaths := <-filePaths
+	syncGDrive.Wait()
+	docxPathsMessage <- docxPaths
 	drive_sync.Done()
 }
 
 // Find all Exported file paths via a regex expression and then add them to an array
-func interpret_drive_output(sync_gd *sync.WaitGroup, output chan string, file_paths chan []string) {
+func interpretDriveOutput(syncGDrive *sync.WaitGroup, output chan string, filePaths chan []string) {
 	fmt.Println("Interpreting command line output...")
 	results := <-output
 	re := regexp.MustCompile(`[^'](?:to ')(.*?)'`)
 	matches := re.FindAllString(results, -1)
 	fmt.Printf("File paths: %s \n", matches)
-	file_paths <- matches
+	filePaths <- matches
 	fmt.Println("Done!")
-	sync_gd.Done()
+	syncGDrive.Done()
 }
 
 // Convert from docx to markdown with pandoc
-func convert_to_markdown_with_pandoc(docx_file_path string, md_file_path string, pandoc *sync.WaitGroup) {
-	convert := exec.Command("/usr/bin/pandoc", "--atx-headers", "--smart", "--normalize", "--email-obfuscation=references", "--mathjax", "-t", "markdown_strict", "-o", md_file_path, docx_file_path)
+func convertToMarkdownWithPandoc(docxFilePath string, markdownFilePath string, pandoc *sync.WaitGroup) {
+	convert := exec.Command("/usr/bin/pandoc", "--atx-headers", "--smart", "--normalize", "--email-obfuscation=references", "--mathjax", "-t", "markdown_strict", "-o", markdownFilePath, docxFilePath)
 	convert.Dir = "/"
 	out, err := convert.CombinedOutput()
 	if err != nil {
-		fmt.Println("[ERROR] Error converting files to markdown with pandoc: ", err )
+		fmt.Println("[ERROR] Error converting files to markdown with pandoc: ", err)
 	}
 	fmt.Println("pandoc: ", out)
 	pandoc.Done()
@@ -302,8 +302,8 @@ func (m *MarkdownFileRecord) Prepend(content []string) error {
 	return nil
 }
 
-func prependWrapper(content []string, md_file_path string, prepend *sync.WaitGroup) {
-	err := NewMarkdownFile(md_file_path).Prepend(content)
+func prependWrapper(content []string, markdownFilePath string, prepend *sync.WaitGroup) {
+	err := NewMarkdownFile(markdownFilePath).Prepend(content)
 	if err != nil {
 		fmt.Println("[ERROR] Error prepending hugo front-matter to document: ", err)
 	}
@@ -357,8 +357,8 @@ func deleteLine(f *os.File) ([]byte, error) {
 	return []byte(line), nil
 }
 
-func deleteLineWrapper(md_file_path string, deleteline *sync.WaitGroup) {
-	f, err := os.OpenFile(md_file_path, os.O_RDWR|os.O_CREATE, 0666)
+func deleteLineWrapper(markdownFilePath string, deleteline *sync.WaitGroup) {
+	f, err := os.OpenFile(markdownFilePath, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		fmt.Println("[ERROR] Error opening file: ", err)
 	}
@@ -367,7 +367,7 @@ func deleteLineWrapper(md_file_path string, deleteline *sync.WaitGroup) {
 	if err != nil {
 		fmt.Println("[ERROR] Error deleting a line: ", err)
 	}
-	fmt.Printf("Deleted line: %s from %s\n", string(line), md_file_path)
+	fmt.Printf("Deleted line: %s from %s\n", string(line), markdownFilePath)
 	f.Close()
 	deleteline.Done()
 }
@@ -377,15 +377,15 @@ func deleteLineWrapper(md_file_path string, deleteline *sync.WaitGroup) {
 /* =============================== */
 
 // Rewrite a line in a file
-func rewriteMarkdownLine(line int, replacement string, md_file_path string, rewritemarkdown *sync.WaitGroup) {
-	input, err := ioutil.ReadFile(md_file_path)
+func rewriteMarkdownLine(line int, replacement string, markdownFilePath string, rewritemarkdown *sync.WaitGroup) {
+	input, err := ioutil.ReadFile(markdownFilePath)
 	if err != nil {
 		fmt.Println("[ERROR] Error opening the file", err)
 	}
 	contents := strings.Split(string(input), "\n")
 	contents[line] = replacement
 	output := strings.Join(contents, "\n")
-	err = ioutil.WriteFile(md_file_path, []byte(output), 0644)
+	err = ioutil.WriteFile(markdownFilePath, []byte(output), 0644)
 	if err != nil {
 		fmt.Println("[ERROR] There was an error writing the file")
 	}
@@ -393,127 +393,127 @@ func rewriteMarkdownLine(line int, replacement string, md_file_path string, rewr
 }
 
 // General function for regex
-func regex_line_of_markdown(contents []string, regex string, variable string, line int) (value []string, line_number int) {
+func regexLineOfMarkdown(contents []string, regex string, variable string, line int) (value []string, lineNumber int) {
 	if strings.Index(contents[line], variable) >= 0 {
 		re := regexp.MustCompile(regex)
 		value = re.FindAllString(contents[line], -1)
 		// if we find it, move down a line
-		line_number = line + 2
+		lineNumber = line + 2
 		return
 	}
 	value = append(value, "")
-	line_number = line
+	lineNumber = line
 	// didn't find anything, then leave blank and do not iterate the line number
 	return
 }
 
 // Read markdown document and write the hugo headers to the beginning of the document
-func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string, hugo_dir string, nginx_dir string, front_matter *sync.WaitGroup) {
-	markdownfile := NewMarkdownFile(md_file_path)
+func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, hugoDirectory string, productionDirectory string, front_matter *sync.WaitGroup) {
+	markdownfile := NewMarkdownFile(markdownFilePath)
 	err := markdownfile.readMarkdownLines()
 	if err != nil {
 		fmt.Println("[ERROR] Error reading lines from the markdown file: ", err)
 	}
 	// Read and then rewrite the line read according to what value it should be
-	var i int // The number of driveraker front matter lines
-	i = 0 // For the reading line, start at 0
+	var i int                    // The number of driveraker front matter lines
+	i = 0                        // For the reading line, start at 0
 	var hugoFrontMatter []string // Add all hugo front matter to this string slice
 	hugoFrontMatter = append(hugoFrontMatter, "{")
 	// Find DRVRKR\_TAGS
 	var tags []string
-	tags, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)`, "DRVRKR\\_TAGS", i)
-	tag_list := fmt.Sprintf("%f", tags)
-	tag_list = strings.Replace(tag_list, `%!f(string= `, `"`, -1)
-	tag_list = strings.Replace(tag_list, `) `, `", `, -1)
-	tag_list = strings.Replace(tag_list, `)`, `"`, -1)
-	tag_list = "    \"tags\": " + tag_list
-	hugoFrontMatter = append(hugoFrontMatter, tag_list)
+	tags, i = regexLineOfMarkdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_TAGS)](\w+)`, "DRVRKR\\_TAGS", i)
+	tagsList := fmt.Sprintf("%f", tags)
+	tagsList = strings.Replace(tagsList, `%!f(string= `, `"`, -1)
+	tagsList = strings.Replace(tagsList, `) `, `", `, -1)
+	tagsList = strings.Replace(tagsList, `)`, `"`, -1)
+	tagsList = "    \"tags\": " + tagsList + ","
+	hugoFrontMatter = append(hugoFrontMatter, tagsList)
 	// Now find the DRVRKR\_CATEGORIES
 	var categories []string
-	categories, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_CATEGORIES)](\w+)`, "DRVRKR\\_CATEGORIES", i)
-	cat_list := fmt.Sprintf("%f", categories)
-	cat_list = strings.Replace(cat_list, `%!f(string= `, `"`, -1)
-	cat_list = strings.Replace(cat_list, `) `, `", `, -1)
-	cat_list = strings.Replace(cat_list, `)`, `"`, -1)
-	cat_list = "    \"categories\": " + cat_list
-	hugoFrontMatter = append(hugoFrontMatter, cat_list)
+	categories, i = regexLineOfMarkdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_CATEGORIES)](\w+)`, "DRVRKR\\_CATEGORIES", i)
+	categoriesList := fmt.Sprintf("%f", categories)
+	categoriesList = strings.Replace(categoriesList, `%!f(string= `, `"`, -1)
+	categoriesList = strings.Replace(categoriesList, `) `, `", `, -1)
+	categoriesList = strings.Replace(categoriesList, `)`, `"`, -1)
+	categoriesList = "    \"categories\": " + categoriesList + ","
+	hugoFrontMatter = append(hugoFrontMatter, categoriesList)
 	// Draft status
-	hugoFrontMatter = append(hugoFrontMatter, "    \"draft\": \"false\"")
+	hugoFrontMatter = append(hugoFrontMatter, "    \"draft\": \"false\",")
 	// Now find the DRVRKR\_PUB\_DATE
 	var publicationyearmonthdate []string
-	publicationyearmonthdate, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_PUB\\\_DATE)](\w+)`, "DRVRKR\\_PUB\\_DATE", i)
-	pub_date := fmt.Sprintf("%f", publicationyearmonthdate)
-	pub_date = strings.Replace(pub_date, `%!f(string= `, ``, -1)
-	pub_date = strings.Replace(pub_date, `)`, ``, -1)
-	pub_date = strings.Replace(pub_date, `[`, `"`, -1)
-	pub_date = strings.Replace(pub_date, `]`, `"`, -1)
-	pub_date = strings.Replace(pub_date, ` `, `-`, -1)
-	hugoFrontMatter = append(hugoFrontMatter, "    \"date\": " + pub_date)
-	hugoFrontMatter = append(hugoFrontMatter, "    \"publishDate\": " + pub_date)
+	publicationyearmonthdate, i = regexLineOfMarkdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_PUB\\\_DATE)](\w+)`, "DRVRKR\\_PUB\\_DATE", i)
+	publicationDate := fmt.Sprintf("%f", publicationyearmonthdate)
+	publicationDate = strings.Replace(publicationDate, `%!f(string= `, ``, -1)
+	publicationDate = strings.Replace(publicationDate, `)`, ``, -1)
+	publicationDate = strings.Replace(publicationDate, `[`, `"`, -1)
+	publicationDate = strings.Replace(publicationDate, `]`, `"`, -1)
+	publicationDate = strings.Replace(publicationDate, ` `, `-`, -1)
+	hugoFrontMatter = append(hugoFrontMatter, "    \"date\": " + publicationDate + ",")
+	hugoFrontMatter = append(hugoFrontMatter, "    \"publishDate\": " + publicationDate + ",")
 	// Now find the DRVRKR\_UPDATE\_DATE
 	var updateyearmonthdate []string
-	updateyearmonthdate, i = regex_line_of_markdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_UPDATE\\\_DATE)](\w+)`, "DRVRKR\\_UPDATE\\_DATE", i)
-	mod_date := fmt.Sprintf("%f", updateyearmonthdate)
-	mod_date = strings.Replace(mod_date, `%!f(string= `, ``, -1)
-	mod_date = strings.Replace(mod_date, `)`, ``, -1)
-	mod_date = strings.Replace(mod_date, `[`, `"`, -1)
-	mod_date = strings.Replace(mod_date, `]`, `"`, -1)
-	mod_date = strings.Replace(mod_date, ` `, `-`, -1)
-	mod_date = "    \"lastmod\": " + mod_date
-	hugoFrontMatter = append(hugoFrontMatter, mod_date)
+	updateyearmonthdate, i = regexLineOfMarkdown(markdownfile.Contents, `[^\\\_:,\n]*?[^(DRVRKR\\\_UPDATE\\\_DATE)](\w+)`, "DRVRKR\\_UPDATE\\_DATE", i)
+	modificationDate := fmt.Sprintf("%f", updateyearmonthdate)
+	modificationDate = strings.Replace(modificationDate, `%!f(string= `, ``, -1)
+	modificationDate = strings.Replace(modificationDate, `)`, ``, -1)
+	modificationDate = strings.Replace(modificationDate, `[`, `"`, -1)
+	modificationDate = strings.Replace(modificationDate, `]`, `"`, -1)
+	modificationDate = strings.Replace(modificationDate, ` `, `-`, -1)
+	modificationDate = "    \"lastmod\": " + modificationDate + ","
+	hugoFrontMatter = append(hugoFrontMatter, modificationDate)
 	// Now find the cover photo for the article
 	var imagenames []string
-	imagenames, i = regex_line_of_markdown(markdownfile.Contents, `(\w+.png)`, `<img src=`, i)
+	imagenames, i = regexLineOfMarkdown(markdownfile.Contents, `(\w+.png)`, `<img src=`, i)
 	imagename := imagenames[1]
-	cover_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + imagename
-	//fmt.Println("image path before: " + "\"" + cover_image_path_before + "\"")
-	cover_image_path_after := hugo_dir + "static/images/" + imagename
-	//fmt.Println("image path after: " + "\"" + cover_image_path_after + "\"")
-	copy_cover_image := exec.Command("/bin/cp", cover_image_path_before, cover_image_path_after)
-	copy_cover_image.Dir = "/"
+	coverImagePathBefore := path.Dir(path.Dir(docxFilePath)) + "/" + imagename
+	//fmt.Println("image path before: " + "\"" + coverImagePathBefore + "\"")
+	coverImagePathAfter := hugoDirectory + "static/images/" + imagename
+	//fmt.Println("image path after: " + "\"" + coverImagePathAfter + "\"")
+	copyCoverImage := exec.Command("/bin/cp", coverImagePathBefore, coverImagePathAfter)
+	copyCoverImage.Dir = "/"
 	fmt.Println("Moving inline image to hugo directory...")
-	out, err := copy_cover_image.CombinedOutput()
+	out, err := copyCoverImage.CombinedOutput()
 	if err != nil {
-		fmt.Println("[ERROR] Error moving " + imagename +": ", err)
+		fmt.Println("[ERROR] Error moving " + imagename + ": ", err)
 	}
 	fmt.Println("Moved the image: ", out)
-	frontmatterimage := "    \"image\": \"" + imagename + "\""
+	frontmatterimage := "    \"image\": \"" + imagename + "\","
 	hugoFrontMatter = append(hugoFrontMatter, frontmatterimage)
 	// Caption for image
 	var frontimagecaption []string
-	frontimagecaption, i = regex_line_of_markdown(markdownfile.Contents, `##### +(.*)`, `#####`, i)
-	frontmattercaption := "<p class\"front-matter-image-caption\">" + frontimagecaption[0] + "</p>"
+	frontimagecaption, i = regexLineOfMarkdown(markdownfile.Contents, `##### +(.*)`, `#####`, i)
+	frontmattercaption := "<p class=\"front-matter-image-caption\">" + frontimagecaption[0] + "</p>"
 	// Now find the headline of the article
 	var title []string
-	title, i = regex_line_of_markdown(markdownfile.Contents, `# +(.*)`, `#`, i)
+	title, i = regexLineOfMarkdown(markdownfile.Contents, `# +(.*)`, `#`, i)
 	headline := fmt.Sprintf("%f", title)
 	headline = strings.Replace(headline, `%!f(string=# `, ``, -1)
 	headline = strings.Replace(headline, `)`, ``, -1)
 	headline = strings.Replace(headline, `(`, ``, -1)
 	headline = strings.Replace(headline, `[`, `"`, -1)
 	headline = strings.Replace(headline, `]`, `"`, -1)
-	headline = "    \"title\": " + headline
+	headline = "    \"title\": " + headline + ","
 	hugoFrontMatter = append(hugoFrontMatter, headline)
 	// Find the subtitle
 	var subtitle []string
-	subtitle, i = regex_line_of_markdown(markdownfile.Contents, `# +(.*)`, `##`, i)
+	subtitle, i = regexLineOfMarkdown(markdownfile.Contents, `# +(.*)`, `##`, i)
 	description := fmt.Sprintf("%f", subtitle)
 	description = strings.Replace(description, `%!f(string=# `, ``, -1)
 	description = strings.Replace(description, `)`, ``, -1)
 	description = strings.Replace(description, `(`, ``, -1)
 	description = strings.Replace(description, `[`, `"`, -1)
 	description = strings.Replace(description, `]`, `"`, -1)
-	description = "    \"description\": " + description
+	description = "    \"description\": " + description + ","
 	hugoFrontMatter = append(hugoFrontMatter, description)
 	// Find the authors on the byline
 	var author_names []string
-	author_names, i = regex_line_of_markdown(markdownfile.Contents, `[^(####By |,and|,)](?:By | and)*?(\w+.\w+)`, `#### By`, i)
-	author_list := fmt.Sprintf("%f", author_names)
-	author_list = strings.Replace(author_list, `%!f(string=`, `"`, -1)
-	author_list = strings.Replace(author_list, `) `, `", `, -1)
-	author_list = strings.Replace(author_list, `)`, `"`, -1)
-	author_list = "    \"authors\": " + author_list
-	hugoFrontMatter = append(hugoFrontMatter, author_list)
+	author_names, i = regexLineOfMarkdown(markdownfile.Contents, `[^(####By |,and|,)](?:By | and)*?(\w+.\w+)`, `#### By`, i)
+	authorList := fmt.Sprintf("%f", author_names)
+	authorList = strings.Replace(authorList, `%!f(string=`, `"`, -1)
+	authorList = strings.Replace(authorList, `) `, `", `, -1)
+	authorList = strings.Replace(authorList, `)`, `"`, -1)
+	authorList = "    \"authors\": " + authorList
+	hugoFrontMatter = append(hugoFrontMatter, authorList)
 	hugoFrontMatter = append(hugoFrontMatter, "}")
 	hugoFrontMatter = append(hugoFrontMatter, "")
 	hugoFrontMatter = append(hugoFrontMatter, frontmattercaption)
@@ -522,25 +522,25 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 	var deleteline sync.WaitGroup
 	for k := 0; k < i; k++ {
 		deleteline.Add(1)
-		deleteLineWrapper(md_file_path, &deleteline)
+		deleteLineWrapper(markdownFilePath, &deleteline)
 		deleteline.Wait()
 	}
 	// Now write the hugo front-matter to the file
 	var prepend sync.WaitGroup
 	prepend.Add(1)
-	markdownfile = NewMarkdownFile(md_file_path)
+	markdownfile = NewMarkdownFile(markdownFilePath)
 	err = markdownfile.readMarkdownLines()
 	if err != nil {
 		fmt.Println("[ERROR] Error reading lines from the markdown file: ", err)
 	}
-	go prependWrapper(hugoFrontMatter, md_file_path, &prepend)
+	go prependWrapper(hugoFrontMatter, markdownFilePath, &prepend)
 	prepend.Wait()
 	// For-loop through the rest of the document looking for in-line images
 	// in-line headers are taken care of on frontend by hugo's theme
 	// in-line captions are taken care of on frontend by hugo's theme
 	var rewriteimageline sync.WaitGroup
 	for j := 0; j < len(markdownfile.Contents); j++ {
-		markdownfile = NewMarkdownFile(md_file_path)
+		markdownfile = NewMarkdownFile(markdownFilePath)
 		err = markdownfile.readMarkdownLines()
 		if err != nil {
 			fmt.Println("[ERROR] Error reading lines from the markdown file: ", err)
@@ -549,8 +549,8 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 			rewriteimageline.Add(1)
 			re2 := regexp.MustCompile(`(\w+.png)`)
 			inline_image := re2.FindAllString(markdownfile.Contents[j], -1)
-			inline_image_path_before := path.Dir(path.Dir(docx_file_path)) + "/" + inline_image[1]
-			inline_image_path_after := hugo_dir + "static/images/" + inline_image[1]
+			inline_image_path_before := path.Dir(path.Dir(docxFilePath)) + "/" + inline_image[1]
+			inline_image_path_after := hugoDirectory + "static/images/" + inline_image[1]
 			copy_image := exec.Command("/bin/cp", inline_image_path_before, inline_image_path_after)
 			copy_image.Dir = "/"
 			fmt.Println("Moving inline image to hugo directory...")
@@ -562,15 +562,15 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 			fmt.Println("Moving the image: ", out)
 			fmt.Println("Done moving " + inline_image[1])
 			// Before writing the new line make sure that the path points to the production directory
-			inline_image_path_after = nginx_dir + "public/images/" + inline_image[1]
-			fmt.Println("Writing a new inline-image path for " + md_file_path)
+			inline_image_path_after = productionDirectory + "public/images/" + inline_image[1]
+			fmt.Println("Writing a new inline-image path for " + markdownFilePath)
 			// Use the image caption as the alt text for the inline-image
 			regex_alt_text := regexp.MustCompile(`##### +(.*)`)
-			alt_texts := regex_alt_text.FindAllString(markdownfile.Contents[j + 2], -1)
+			alt_texts := regex_alt_text.FindAllString(markdownfile.Contents[j+2], -1)
 			alt_text := strings.Replace(alt_texts[0], `##### `, ``, -1)
 			// Rewrite the inline image to have a css class called inline-image
-			newimageinline := "<img src= \"" + inline_image_path_after + "\" alt=\"" + alt_text + "\" class=\"inline-image\">"
-			go rewriteMarkdownLine(j, newimageinline, md_file_path, &rewriteimageline)
+			newimageinline := "<img src=\"" + inline_image_path_after + "\" alt=\"" + alt_text + "\" class=\"inline-image\">"
+			go rewriteMarkdownLine(j, newimageinline, markdownFilePath, &rewriteimageline)
 			rewriteimageline.Wait()
 			j = j + 2
 		}
@@ -581,18 +581,18 @@ func read_markdown_write_hugo_headers(md_file_path string, docx_file_path string
 
 // Use hugo to compile the markdown files into html and then move the files to the production directory, i.e. where nginx or apache serve files
 // Make sure to chown or chmod the production directory before running driveraker
-func compile_and_serve_hugo_site(hugo_dir string, prod_dir string, serve *sync.WaitGroup) {
+func compile_and_serve_hugo_site(hugoDirectory string, prod_dir string, serve *sync.WaitGroup) {
 	compile := exec.Command("/usr/bin/hugo")
-	compile.Dir = hugo_dir
+	compile.Dir = hugoDirectory
 	out, err := compile.Output()
 	if err != nil {
-		fmt.Println("[ERROR] Error compiling a website with hugo: ", err )
+		fmt.Println("[ERROR] Error compiling a website with hugo: ", err)
 	}
-	fmt.Println("hugo: ", out)
-	copyCompiledSite := exec.Command("/bin/cp", "-r", "-u", hugo_dir + "public/*", prod_dir)
+	fmt.Println("hugo: ", string(out))
+	copyCompiledSite := exec.Command("/bin/cp", "-r", "-u", hugoDirectory + "public/*", prod_dir)
 	copyCompiledSite.Dir = "/"
 	fmt.Println("Moving compiled hugo site to the production directory...")
-	out, err := copyCompiledSite.Output()
+	out, err = copyCompiledSite.Output()
 	if err != nil {
 		fmt.Println("[ERROR] Error moving hugo compiled site to production directory: ", err)
 		return
@@ -611,54 +611,54 @@ func main() {
 	// Set the driveraker config path
 	driveraker_config := HOME + "/.config/driveraker/config"
 	// Read the driveraker config
-	conf_message := make(chan string)
+	confMessage := make(chan string)
 	var conf sync.WaitGroup
 	conf.Add(1)
-	go read_cfg(driveraker_config, &conf, conf_message)
+	go readConfig(driveraker_config, &conf, confMessage)
 	// Set the configured paths
-	drive_sync_dir := <-conf_message
-	drive_remote_dir := <-conf_message
-	hugo_post_dir := <-conf_message
-	productionDirectory := <-conf_message
+	driveSyncDirectory := <-confMessage
+	driveRemoteDirectory := <-confMessage
+	hugoPostDirectory := <-confMessage
+	productionDirectory := <-confMessage
 	conf.Wait()
 	// Sync Google Drive
-	docx_paths_message := make(chan []string)
+	docxPathsMessage := make(chan []string)
 	var drive_sync sync.WaitGroup
 	drive_sync.Add(1)
-	go sync_google_drive(drive_sync_dir, drive_remote_dir, &drive_sync, docx_paths_message)
-	docx_file_paths := <-docx_paths_message
-	fmt.Printf("docx file paths: %s \n", docx_file_paths)
+	go syncGoogleDrive(driveSyncDirectory, driveRemoteDirectory, &drive_sync, docxPathsMessage)
+	docxFilePaths := <-docxPathsMessage
+	fmt.Printf("docx file paths: %s \n", docxFilePaths)
 	drive_sync.Wait()
 	// Convert the docx files into markdown files
 	var pandoc sync.WaitGroup
-	pandoc.Add(len(docx_file_paths))
-	var markdown_paths []string
+	pandoc.Add(len(docxFilePaths))
+	var markdownPaths []string
 	fmt.Println("Converting synced docx files into markdown files...")
-	for i := 0; i < len(docx_file_paths); i++ {
-		docx_file_path := docx_file_paths[i]
-		docx_file_path = strings.Replace(docx_file_path, ` to '`, ``, -1)
-		docx_file_path = strings.Replace(docx_file_path, `docx'`, `docx`, -1)
-		docx_file_paths[i] = docx_file_path
-		fmt.Println("Converting " + docx_file_path)
+	for i := 0; i < len(docxFilePaths); i++ {
+		docxFilePath := docxFilePaths[i]
+		docxFilePath = strings.Replace(docxFilePath, ` to '`, ``, -1)
+		docxFilePath = strings.Replace(docxFilePath, `docx'`, `docx`, -1)
+		docxFilePaths[i] = docxFilePath
+		fmt.Println("Converting " + docxFilePath)
 		name_regex := regexp.MustCompile(`(\w+)(?:.docx)`)
-		name := name_regex.FindAllString(docx_file_path, -1)
-		markdown_path := hugo_post_dir + "content/articles/" + name[0] + ".md"
-		markdown_paths = append(markdown_paths, markdown_path)
-		go convert_to_markdown_with_pandoc(docx_file_path, markdown_path, &pandoc)
+		name := name_regex.FindAllString(docxFilePath, -1)
+		markdown_path := hugoPostDirectory + "content/articles/" + name[0] + ".md"
+		markdownPaths = append(markdownPaths, markdown_path)
+		go convertToMarkdownWithPandoc(docxFilePath, markdown_path, &pandoc)
 	}
 	pandoc.Wait()
 	// Add hugo front-matter to the files
 	var frontmatter sync.WaitGroup
-	frontmatter.Add(len(markdown_paths))
+	frontmatter.Add(len(markdownPaths))
 	fmt.Println("Adding hugo front-matter to markdown files...")
-	for i := 0; i < len(markdown_paths); i++ {
-		go read_markdown_write_hugo_headers(markdown_paths[i], docx_file_paths[i], hugo_post_dir, nginx_dir, &frontmatter)
+	for i := 0; i < len(markdownPaths); i++ {
+		go readMarkdownWriteHugoHeaders(markdownPaths[i], docxFilePaths[i], hugoPostDirectory, productionDirectory, &frontmatter)
 	}
 	frontmatter.Wait()
 	// Serve the website by compiling the site with hugo and moving it to the production directory
 	var serveWebsite sync.WaitGroup
 	serveWebsite.Add(1)
-	go compile_and_serve_hugo_site(hugo_post_dir, productionDirectory, &serve)
+	go compile_and_serve_hugo_site(hugoPostDirectory, productionDirectory, &serveWebsite)
 	serveWebsite.Wait()
 	// Send back a success message and code
 	fmt.Println("driveraker successfully synced, converted, and compiled Google Documents into a website")
