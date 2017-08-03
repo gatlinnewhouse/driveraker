@@ -2,5 +2,5 @@
         "DriveSyncDirectory": "/home/godel/.gdrive/",
         "GoogleDriveRemoteDirectory": "The_Quest/WEB_STUFF/",
         "HugoPostDirectory": "/home/godel/hugo-test-site/",
-        "NginxDirectory": "/var/www/html/"
+        "ProductionDirectory": "/var/www/html/"
 }
