@@ -93,9 +93,9 @@ func (s *PathStore) Set(key, path *string) error {
 }
 
 // Write a new path to the hashtable without a known key
-func (s *PathStore) Put(path, DriveSyncDirectory, key *string) error {
+func (s *PathStore) Put(path, DriveSyncDirectory *string) error {
 	for {
-		*key = md5hash(fmt.Sprintf("%s", path), fmt.Sprintf("%s", DriveSyncDirectory))
+		*key := md5hash(fmt.Sprintf("%s", path), fmt.Sprintf("%s", DriveSyncDirectory))
 		s.count++
 		if err := s.Set(key, path); err == nil {
 			break
@@ -162,10 +162,11 @@ func (s *PathStore) saveLoop(filename string) {
 
 // The configuration file struct
 type Configuration struct {
-	DriveSyncDirectory         string
-	GoogleDriveRemoteDirectory string
-	HugoPostDirectory          string
-	ProductionDirectory        string
+	DriveSyncDirectory          string
+	GoogleDriveRemoteDirectory  string
+	HugoPostDirectory           string
+	ProductionDirectory         string
+	HashtablePath							  string
 }
 
 // Read the configuration JSON file in order to get some settings and directories
@@ -179,14 +180,11 @@ func readConfig(filename string, conf *sync.WaitGroup, confMessage chan string) 
 		fmt.Println("[ERROR] Error reading the JSON confguration: ", err)
 		return
 	}
-	driveSyncDirectory := fmt.Sprintf(configuration.DriveSyncDirectory)
-	confMessage <- driveSyncDirectory
-	driveRemoteDirectory := fmt.Sprintf(configuration.GoogleDriveRemoteDirectory)
-	confMessage <- driveRemoteDirectory
-	hugoPostDirectory := fmt.Sprintf(configuration.HugoPostDirectory)
-	confMessage <- hugoPostDirectory
-	productionDirectory := fmt.Sprintf(configuration.ProductionDirectory)
-	confMessage <- productionDirectory
+	confMessage <- fmt.Sprintf(configuration.DriveSyncDirectory)
+	confMessage <- fmt.Sprintf(configuration.GoogleDriveRemoteDirectory)
+	confMessage <- fmt.Sprintf(configuration.HugoPostDirectory)
+	confMessage <- fmt.Sprintf(configuration.ProductionDirectory)
+	confMessage <- fmt.Sprintf(configuration.HashtablePath)
 	fmt.Println("Finished reading configuration!")
 	conf.Done()
 }
@@ -194,7 +192,7 @@ func readConfig(filename string, conf *sync.WaitGroup, confMessage chan string) 
 // Sync google drive remote folder to the configured local directory.
 // Then send the output from drive CLI to a function to intepret the output
 // by stripping the full output down to an array of string paths to docx files.
-func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, driveSync *sync.WaitGroup, docxPathsMessage chan []string) {
+func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, databasePath string, driveSync *sync.WaitGroup, docxPathsMessage chan []string) {
 	syncGDrive := new(sync.WaitGroup)
 	output := make(chan string)
 	filePaths := make(chan []string)
@@ -209,7 +207,7 @@ func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, driveSyn
 	fmt.Printf("drive: " + string(out))
 	fmt.Println("Done syncing!")
 	syncGDrive.Add(1)
-	go interpretDriveOutput(syncGDrive, output, filePaths)
+	go interpretDriveOutput(syncGDrive, databasePath, output, filePaths)
 	output <- string(out)
 	docxPaths := <-filePaths
 	syncGDrive.Wait()
@@ -217,12 +215,84 @@ func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, driveSyn
 	driveSync.Done()
 }
 
+// exists returns whether the given file or directory exists or not
+func exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return true, err
+}
+
+// Look up paths in hashtable
+// Already in hashtable, then remove from the array
+// Unless it is a modified document
+// Otherwise add the new paths to the hashtable and forward them back to the main function
+func alreadySyncedAndCompiled(hashtablePath string, driveSyncDirectory string, checkHashtable *sync.WaitGroup, pathsToHash chan string, filePathsToSync chan []string) {
+	hashtable := NewPathStore("/tmp/driverakerDBtmp")
+	exists, err := exists(hashtablePath)
+	if exists == false {
+		if err != nil {
+			fmt.Println("[ERROR] Error opening the hashtable database: ", err)
+		}
+		hashtable.saveLoop(hashtablePath)
+	}
+	hashtable.load(hashtablePath)
+	// Check for filepaths in hashtable
+	for i = 0; i < len(matches); i++ {
+		*key := md5hash(matches[i], driveSyncDirectory)
+		inHashTable := hashtable.Get(key, &matches[i])
+		if inHashTable != nil {
+			matches = append(matches[:i], matches[i+1:]...)
+			i--
+		} else {
+			errWriting := hashtable.Put(&matches[i], &driveSyncDirectory)
+			if errWriting != nil {
+				fmt.Println("[ERROR] Error saving path to hashtable: ", err)
+			}
+		}
+	}
+	// Save hashtable to file
+	hashtable.saveLoop(hashtablePath)
+	// ADD IN A sync.WaitGroup in the above call and function ^
+	checkHashtable.Done()
+}
+
+// Find all modified documents and make sure to compile them by adding them to a string array
+func findModifiedDocuments(findModifiedPaths *sync.WaitGroup, result string, addToFilePaths chan string) {
+	re := regexp.MustCompile(`M (\/.*)`)
+	values := re.FindAllString(result, -1)
+	var modifiedDocuments []string
+	for i = 0; i < len(values); i++; {
+		value := fmt.Sprintf("%f", values[0])
+		value = strings.Replace(value, `%!f(string=M `, ``, -1)
+		value = strings.Replace(value, `)`, ``, -1)
+		filename := value[strings.LastIndex(value, "/"):len(value)]
+		value = value + "_exports" + filename + ".docx"
+		modifiedDocuments = append(modifiedDocuments, value)
+	}
+	addToFilePaths <- modifiedDocuments
+	findModifiedPaths.Done()
+}
+
 // Find all Exported file paths via a regex expression and then add them to an array
-func interpretDriveOutput(syncGDrive *sync.WaitGroup, output chan string, filePaths chan []string) {
+func interpretDriveOutput(syncGDrive *sync.WaitGroup, hashtablePath string, output chan string, filePaths chan []string) {
+	findModifiedDocuments := new(sync.WaitGroup)
 	fmt.Println("Interpreting command line output...")
 	results := <-output
 	re := regexp.MustCompile(`[^'](?:to ')(.*?)'`)
 	matches := re.FindAllString(results, -1)
+	// Lookup entries in hashtable
+	// Find modified documents and add them to the docx paths
+	findModifiedDocuments.Add(1)
+	go findModifiedDocuments(&findModifiedDocuments, results, filePaths)
+	modifiedDocuments := <-filePaths
+	matches = append(matches, modifiedDocuments...)
+	findModifiedDocuments.Wait()
+	// Send the list of files to convert and append hugo front-matter back to the main thread
 	fmt.Printf("File paths: %s \n", matches)
 	filePaths <- matches
 	fmt.Println("Done!")
@@ -621,12 +691,13 @@ func main() {
 	driveRemoteDirectory := <-confMessage
 	hugoPostDirectory := <-confMessage
 	productionDirectory := <-confMessage
+	hashtablePath := <-confMessage
 	conf.Wait()
 	// Sync Google Drive
 	docxPathsMessage := make(chan []string)
 	var driveSync sync.WaitGroup
 	driveSync.Add(1)
-	go syncGoogleDrive(driveSyncDirectory, driveRemoteDirectory, &driveSync, docxPathsMessage)
+	go syncGoogleDrive(driveSyncDirectory, driveRemoteDirectory, hastablePath, &driveSync, docxPathsMessage)
 	docxFilePaths := <-docxPathsMessage
 	fmt.Printf("docx file paths: %s \n", docxFilePaths)
 	driveSync.Wait()
