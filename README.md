@@ -6,6 +6,8 @@ A Google Drive to static site generator via [Hugo](https://gohugo.io/), [Pandoc]
 
 driveraker is styled without capitalization. The name derives from the term [muckraker](https://en.wikipedia.org/wiki/Muckraker), an insult (or compliment) directed at journalists, I named driveraker such because driveraker aims to integrate Google Drive with a static site generator like Hugo in order to provide a website for a news publication.
 
+You can read the changelog [here.](https://gatlinnewhouse.github.io/driveraker/changelog) And downloads can be found [here.](https://github.com/gatlinnewhouse/driveraker/releases/tag/v0.1-alpha)
+
 ### Installation
 
 Requirements:
@@ -17,7 +19,7 @@ Requirements:
 * [Hugo](https://github.com/spf13/hugo)
 * A http(s) server like [nginx](https://nginx.org/) or [apache](https://httpd.apache.org/)
 
-#### Instructions
+#### Installation instructions
 
 WIP
 
