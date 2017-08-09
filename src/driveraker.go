@@ -672,15 +672,8 @@ func compileAndServeHugoSite(hugoDirectory string, productionDirectory string, s
 		fmt.Println("[ERROR] Error compiling a website with hugo: ", err)
 	}
 	fmt.Println("hugo: ", string(out))
-	copyCompiledSite := exec.Command("/usr/bin/cp", "-r", "-u", hugoDirectory + "public/*", productionDirectory)
-	copyCompiledSite.Dir = "/"
-	fmt.Println("Moving compiled hugo site to the production directory...")
-	out, err = copyCompiledSite.Output()
-	if err != nil {
-		fmt.Println("[ERROR] Error moving hugo compiled site to production directory: ", err)
-		return
-	}
-	fmt.Println("Moving the compiled hugo site: ", out)
+	// Hard link the hugo compiled site to the production directory
+	os.Link(hugoDirectory + "public/", productionDirectory)
 	serve.Done()
 }
 
