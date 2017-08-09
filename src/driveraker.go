@@ -580,9 +580,73 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 	front_matter.Done()
 }
 
+func copyFolderWrapper(sourcePath string, targetPath string) {
+	err := copyFolder(sourcePath, targetPath)
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		fmt.Print("copy finish")
+	}
+	return
+}
+
+func copyFolder(source string, dest string) (err error) {
+	sourceinfo, err := os.Stat(source)
+	if err != nil {
+		return err
+	}
+	err = os.MkdirAll(dest, sourceinfo.Mode())
+	if err != nil {
+		return err
+	}
+	directory, _ := os.Open(source)
+	objects, err := directory.Readdir(-1)
+	if err != nil {
+		fmt.Println(err)
+	}
+	for _, obj := range objects {
+		sourcefilepointer := source + "/" + obj.Name()
+		destinationfilepointer := dest + "/" + obj.Name()
+		if obj.IsDir() {
+			err = copyFolder(sourcefilepointer, destinationfilepointer)
+			if err != nil {
+				fmt.Println(err)
+			}
+		} else {
+			err = copyFile(sourcefilepointer, destinationfilepointer)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}
+	return
+}
+
+func copyFile(source string, dest string) (err error) {
+	sourcefile, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer sourcefile.Close()
+	destfile, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer destfile.Close()
+	_, err = io.Copy(destfile, sourcefile)
+	if err == nil {
+		sourceinfo, err := os.Stat(source)
+		if err == nil {
+			err = os.Chmod(dest, sourceinfo.Mode())
+		}
+	}
+	return
+}
+
+
 // Use hugo to compile the markdown files into html and then move the files to the production directory, i.e. where nginx or apache serve files
 // Make sure to chown or chmod the production directory before running driveraker
-func compile_and_serve_hugo_site(hugoDirectory string, prod_dir string, serve *sync.WaitGroup) {
+func compile_and_serve_hugo_site(hugoDirectory string, productionDirectory string, serve *sync.WaitGroup) {
 	compile := exec.Command("/usr/bin/hugo")
 	compile.Dir = hugoDirectory
 	out, err := compile.Output()
@@ -590,15 +654,7 @@ func compile_and_serve_hugo_site(hugoDirectory string, prod_dir string, serve *s
 		fmt.Println("[ERROR] Error compiling a website with hugo: ", err)
 	}
 	fmt.Println("hugo: ", string(out))
-	copyCompiledSite := exec.Command("/bin/cp", "-r", "-u", hugoDirectory + "public/*", prod_dir)
-	copyCompiledSite.Dir = "/"
-	fmt.Println("Moving compiled hugo site to the production directory...")
-	out, err = copyCompiledSite.Output()
-	if err != nil {
-		fmt.Println("[ERROR] Error moving hugo compiled site to production directory: ", err)
-		return
-	}
-	fmt.Println("Moving the compiled hugo site: ", out)
+	go copyFolderWrapper(hugoDirectory + "public/", productionDirectory)
 	serve.Done()
 }
 
