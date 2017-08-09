@@ -590,10 +590,10 @@ func compile_and_serve_hugo_site(hugoDirectory string, productionDirectory strin
 		fmt.Println("[ERROR] Error compiling a website with hugo: ", err)
 	}
 	fmt.Println("hugo: ", string(out))
-	publishHugoSite := exec.Command("/bin/bash", copyHugoSiteToProductionPath, hugoDirectory, productionDirectory)
+	publishHugoSite := exec.Command("/bin/bash", copyHugoSiteToProductionPath, hugoDirectory + "public/", productionDirectory)
 	publishHugoSite.Dir = "/"
 	fmt.Println("Copying hugo compiled site to production directory...")
-	out, err := publishHugoSite.Output()
+	out, err = publishHugoSite.Output()
 	if err != nil {
 		fmt.Println("[ERROR] Error copying hugo site to production: ", err)
 	}
@@ -660,7 +660,7 @@ func main() {
 	// Serve the website by compiling the site with hugo and moving it to the production directory
 	var serveWebsite sync.WaitGroup
 	serveWebsite.Add(1)
-	go compile_and_serve_hugo_site(hugoPostDirectory, productionDirectory, copyHugoSitePath, &serveWebsite)
+	go compile_and_serve_hugo_site(hugoPostDirectory, productionDirectory, copyHugoSiteScript, &serveWebsite)
 	serveWebsite.Wait()
 	// Send back a success message and code
 	fmt.Println("driveraker successfully synced, converted, and compiled Google Documents into a website")
