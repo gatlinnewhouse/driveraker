@@ -3,4 +3,9 @@ Description=Sync driveraker
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash /home/deleuze/.config/driveraker/sync.sh
+User=driveraker
+Group=driveraker
+ExecStart=/bin/bash /home/driveraker/.config/driveraker/sync.sh
+
+[Install]
+WantedBy=multi-user.target

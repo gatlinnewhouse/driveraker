@@ -95,4 +95,15 @@ sudo apt install pandoc
 
 ```bash
 sudo apt install hugo
-```
+ ```
+
+ 
+# Creating permissions
+
+1. Create a driveraker group with `groupadd driveraker`
+
+2. Add the user that is logged into the server to the driveraker group
+
+3. Add the driveraker group to /var/www and all subfolders with `chgrp -R driveraker /var/www`
+
+4. Then change the permissions to allow group members to change items in the folder with `chmod -R 774 /var/www`
