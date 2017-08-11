@@ -233,6 +233,7 @@ func exists(path string) (bool, error) {
 // Unless it is a modified document
 // Otherwise add the new paths to the hashtable and forward them back to the main function
 func alreadySyncedAndCompiled(hashtablePath string, driveSyncDirectory string, checkHashtable *sync.WaitGroup, filePathsToSync chan []string) {
+	fmt.Println("Looking for already synced documents...")
 	matches := <-filePathsToSync
 	hashtable := NewPathStore("/tmp/driverakerDBtmp")
 	exists, err := exists(hashtablePath)
@@ -266,6 +267,7 @@ func alreadySyncedAndCompiled(hashtablePath string, driveSyncDirectory string, c
 
 // Find all modified documents and make sure to compile them by adding them to a string array
 func findModifiedDocuments(findModifiedPaths *sync.WaitGroup, result string, addToFilePaths chan []string) {
+	fmt.Println("Looking for modified documents...")
 	re := regexp.MustCompile(`M (\/.*)`)
 	values := re.FindAllString(result, -1)
 	var modifiedDocuments []string
