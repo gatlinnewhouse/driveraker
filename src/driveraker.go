@@ -114,27 +114,27 @@ var (
 
 type HashTable struct {
 	// Number of items in table
-	size int
+	Size int `json:"Size"`
 	// Maximum number of items in table
-	capacity int
+	Capacity int `json:"Capacity"`
 	// Array of linkedlist pointers
-	items []*LinkedList
+	Items []*LinkedList `json:"Items"`
 }
 
 // Internal helper to wrap the key and value which were added to
 // the hashtable. This is the value stored in the linked lists
 // per bucket.
 type tableItem struct {
-	key   string
-	value interface{}
+	Key   string `json:"Key"`
+	Value interface{} `json:"Value"`
 }
 
 // Create a new hashtable with a given number of buckets. This
 // probably should have been made to specify the capacity instead.
 func NewHashTableSized(size int) *HashTable {
 	table := &HashTable{0, fillRate * size, make([]*LinkedList, size)}
-	for i := 0; i < len(table.items); i++ {
-		table.items[i] = nil
+	for i := 0; i < len(table.Items); i++ {
+		table.Items[i] = nil
 	}
 	return table
 }
@@ -148,12 +148,12 @@ func NewHashTable() *HashTable {
 // This takes up more memory (ish) but reduces the number of items per
 // bucket which makes the datastructure faster to use.
 func (table *HashTable) resizeTable() {
-	next := NewHashTableSized(2 * len(table.items))
-	for _, list := range table.items {
+	next := NewHashTableSized(2 * len(table.Items))
+	for _, list := range table.Items {
 		if list != nil {
 			for _, item := range list.Items() {
 				if parsed, ok := (*item).(tableItem); ok {
-					next.AddItem(parsed.key, parsed.value)
+					next.AddItem(parsed.Key, parsed.Value)
 				} else {
 					fmt.Println("failed to parse item in resize", item)
 				}
@@ -181,26 +181,26 @@ func shortenPath(fullpath, DriveSyncDirectory string) string {
 
 // Add a key, value paid to the hash table.
 func (table *HashTable) AddItem(key string, value interface{}) {
-	index := getIndex(key, len(table.items))
-	if table.items[index] == nil {
-		table.items[index] = NewLinkedList()
+	index := getIndex(key, len(table.Items))
+	if table.Items[index] == nil {
+		table.Items[index] = NewLinkedList()
 	}
-	table.size += 1
-	table.items[index].AddItem(tableItem{key, value})
-	if table.size > table.capacity {
+	table.Size += 1
+	table.Items[index].AddItem(tableItem{key, value})
+	if table.Size > table.Capacity {
 		table.resizeTable()
 	}
 }
 
 // Remove all instances of a key from the table.
 func (table *HashTable) RemoveKey(key string) bool {
-	index := getIndex(key, len(table.items))
-	if table.items[index] != nil {
-		for _, item := range table.items[index].Items() {
+	index := getIndex(key, len(table.Items))
+	if table.Items[index] != nil {
+		for _, item := range table.Items[index].Items() {
 			if parsed, ok := (*item).(tableItem); ok {
-				if parsed.key == key {
-					table.items[index].RemoveItem(item)
-					table.size -= 1
+				if parsed.Key == key {
+					table.Items[index].RemoveItem(item)
+					table.Size -= 1
 				}
 			}
 		}
@@ -211,12 +211,12 @@ func (table *HashTable) RemoveKey(key string) bool {
 // Determine if a key is contained in the hash table.
 func (table *HashTable) ContainsKey(key string) bool {
 	fmt.Println("Checking for key:", key)
-	index := getIndex(key, len(table.items))
-	if table.items[index] != nil {
-		for _, item := range table.items[index].Items() {
+	index := getIndex(key, len(table.Items))
+	if table.Items[index] != nil {
+		for _, item := range table.Items[index].Items() {
 			if parsed, ok := (*item).(tableItem); ok {
-				if parsed.key == key {
-					fmt.Println(parsed.key)
+				if parsed.Key == key {
+					fmt.Println(parsed.Key)
 					return true
 				}
 			} else {
@@ -229,12 +229,12 @@ func (table *HashTable) ContainsKey(key string) bool {
 
 func (table *HashTable) GetValue(key string) interface{} {
 	fmt.Println("Checking for key:", key)
-	index := getIndex(key, len(table.items))
-	if table.items[index] != nil {
-		for _, item := range table.items[index].Items() {
+	index := getIndex(key, len(table.Items))
+	if table.Items[index] != nil {
+		for _, item := range table.Items[index].Items() {
 			if parsed, ok := (*item).(tableItem); ok {
-				if parsed.key == key {
-					return parsed.value
+				if parsed.Key == key {
+					return parsed.Value
 				}
 			} else {
 				fmt.Println("failed to parse item in contains", *item)
@@ -242,6 +242,33 @@ func (table *HashTable) GetValue(key string) interface{} {
 		}
 	}
 	return nil
+}
+
+func (table *HashTable) SaveHashTable(filePath string) {
+	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		fmt.Println("[ERROR] Error opening hashtable file: ", err)
+	}
+	defer f.Close()
+	b, err := json.Marshal(table)
+	if err != nil {
+		fmt.Println("[ERROR] Error saving hashtable as JSON: ", err)
+	}
+	f.Write(b)
+	f.Close()
+}
+
+func readHashTable(filePath string) (table *HashTable) {
+	hashtable, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		fmt.Println("[ERROR] Error opening hashtable: ", err)
+	}
+	var table HashTable
+	err = json.Unmarshal(hashtable, &table)
+	if err != nil {
+		fmt.Println("[ERROR] Error reading hashtable: ", err)
+	}
+	return &table
 }
 
 /*
@@ -322,11 +349,14 @@ func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, database
 func alreadySyncedAndCompiled(matches []string, driveSyncDirectory string, hashTablePath string) []string {
 	fmt.Println("Checking if hashtable already exists...")
 	hashTableExists, err := exists(hashTablePath)
+	// if a hashtable does not exist then make a new one
 	if hashTableExists == false {
 		if err != nil {
 			fmt.Println("[ERROR] Error checking for hashtable: ", err)
 		}
 		hashTable := NewHashTableSized(len(matches))
+	} else {
+		// try to open the already existing hashtable
 	}
 	fmt.Println("Looking for already synced documents...")
 	var alreadySynced bool
