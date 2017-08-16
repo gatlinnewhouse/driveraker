@@ -21,6 +21,232 @@ import (
 	"time"
 )
 
+/*
+Hashtable code forked from
+https://github.com/jackfhebert/hashtable
+*/
+
+// Not publicly visible since it is our internal wrapper.
+type linkedListNode struct {
+	// The value of this node.
+	// Once I figure out interfaces, that will go here.
+	value interface{}
+	// Pointer to the next node in the list.
+	next *linkedListNode
+}
+
+// Exposed - this is the struct to use.
+type LinkedList struct {
+	// The first node in the list.
+	first *linkedListNode
+	// The last item in the list.
+	// This makes adding to the list fast, but isn't strictly
+	// needed.
+	last *linkedListNode
+	// How many items are in the list. This is mostly
+	// for the size helper and not strictly needed.
+	size int
+}
+
+func NewLinkedList() *LinkedList {
+	return &LinkedList{nil, nil, 0}
+}
+
+func (list *LinkedList) Size() int {
+	return list.size
+}
+
+func (list *LinkedList) AddItem(item interface{}) {
+	list.size += 1
+	node := &linkedListNode{item, nil}
+	if list.first == nil {
+		list.first = node
+	}
+	if list.last != nil {
+		list.last.next = node
+	}
+	list.last = node
+}
+
+func (list *LinkedList) RemoveItem(item interface{}) {
+	// Track the previous node from the iterator for updating
+	// pointers between nodes.
+	var prevNode *linkedListNode
+	prevNode = nil
+	for currNode := list.first; currNode != nil; currNode = currNode.next {
+		if currNode.value == item {
+			// Update the list metadata.
+			list.size -= 1
+			if currNode == list.first {
+				list.first = currNode.next
+			}
+			if currNode == list.last {
+				list.last = prevNode
+			}
+			// Update the nodes.
+			if prevNode != nil {
+				prevNode.next = currNode.next
+			}
+
+			// All done here.
+			return
+		}
+
+		// Keep iterating through the list. I could probably assign
+		// this in the for-loop definition above.  
+		prevNode = currNode
+	}
+}
+
+func (list *LinkedList) Items() []*interface{} {
+	items := make([]*interface{}, list.size)
+
+	for i, currNode := 0, list.first; currNode != nil; currNode = currNode.next {
+		items[i] = &currNode.value
+		i += 1
+	}
+	return items
+}
+
+var (
+	fillRate int = 10
+)
+
+type HashTable struct {
+	// Number of items in table
+	size int
+	// Maximum number of items in table
+	capacity int
+	// Array of linkedlist pointers
+	items []*LinkedList
+}
+
+// Internal helper to wrap the key and value which were added to
+// the hashtable. This is the value stored in the linked lists
+// per bucket.
+type tableItem struct {
+	key   string
+	value interface{}
+}
+
+// Create a new hashtable with a given number of buckets. This
+// probably should have been made to specify the capacity instead.
+func NewHashTableSized(size int) *HashTable {
+	table := &HashTable{0, fillRate * size, make([]*LinkedList, size)}
+	for i := 0; i < len(table.items); i++ {
+		table.items[i] = nil
+	}
+	return table
+}
+
+// Return a default hashtable.
+func NewHashTable() *HashTable {
+	return NewHashTableSized(128)
+}
+
+// Make the hashtable bigger so that there are fewer items per bucket.
+// This takes up more memory (ish) but reduces the number of items per
+// bucket which makes the datastructure faster to use.
+func (table *HashTable) resizeTable() {
+	next := NewHashTableSized(2 * len(table.items))
+	for _, list := range table.items {
+		if list != nil {
+			for _, item := range list.Items() {
+				if parsed, ok := (*item).(tableItem); ok {
+					next.AddItem(parsed.key, parsed.value)
+				} else {
+					fmt.Println("failed to parse item in resize", item)
+				}
+			}
+		}
+	}
+	table = next
+}
+
+// Helper function to take the key string and determine which bucket
+// the item should be placed in.
+func getIndex(key string, max int) int {
+	hash := md5.New()
+	hash.Write([]byte(key))
+	digest := hash.Sum32()
+	return int(digest) % max
+}
+
+// Shorten the values for paths by getting rid of the DriveSyncDirectory string
+func shortenPath(fullpath, DriveSyncDirectory string) string {
+	r := strings.NewReplacer(DriveSyncDirectory, "")
+	relativePath := r.Replace(fullpath)
+	return relativePath
+}
+
+// Add a key, value paid to the hash table.
+func (table *HashTable) AddItem(key string, value interface{}) {
+	index := getIndex(key, len(table.items))
+	if table.items[index] == nil {
+		table.items[index] = NewLinkedList()
+	}
+	table.size += 1
+	table.items[index].AddItem(tableItem{key, value})
+	if table.size > table.capacity {
+		table.resizeTable()
+	}
+}
+
+// Remove all instances of a key from the table.
+func (table *HashTable) RemoveKey(key string) bool {
+	index := getIndex(key, len(table.items))
+	if table.items[index] != nil {
+		for _, item := range table.items[index].Items() {
+			if parsed, ok := (*item).(tableItem); ok {
+				if parsed.key == key {
+					table.items[index].RemoveItem(item)
+					table.size -= 1
+				}
+			}
+		}
+	}
+	return false
+}
+
+// Determine if a key is contained in the hash table.
+func (table *HashTable) ContainsKey(key string) bool {
+	fmt.Println("Checking for key:", key)
+	index := getIndex(key, len(table.items))
+	if table.items[index] != nil {
+		for _, item := range table.items[index].Items() {
+			if parsed, ok := (*item).(tableItem); ok {
+				if parsed.key == key {
+					fmt.Println(parsed.key)
+					return true
+				}
+			} else {
+				fmt.Println("failed to parse item in contains", *item)
+			}
+		}
+	}
+	return false
+}
+
+func (table *HashTable) GetValue(key string) interface{} {
+	fmt.Println("Checking for key:", key)
+	index := getIndex(key, len(table.items))
+	if table.items[index] != nil {
+		for _, item := range table.items[index].Items() {
+			if parsed, ok := (*item).(tableItem); ok {
+				if parsed.key == key {
+					return parsed.value
+				}
+			} else {
+				fmt.Println("failed to parse item in contains", *item)
+			}
+		}
+	}
+	return nil
+}
+
+/*
+End of forked Hashtable code
+*/
 
 // The configuration file struct
 type Configuration struct {
@@ -49,15 +275,6 @@ func readConfig(filename string, conf *sync.WaitGroup, confMessage chan string) 
 	confMessage <- fmt.Sprintf(configuration.HashtablePath)
 	fmt.Println("Finished reading configuration!")
 	conf.Done()
-}
-
-// Use md5 hash sums for the filepaths
-func md5hash(text, DriveSyncDirectory string) string {
-	r := strings.NewReplacer(DriveSyncDirectory, "")
-	relativepath := r.Replace(text)
-	hasher := md5.New()
-	hasher.Write([]byte(relativepath))
-	return hex.EncodeToString(hasher.Sum(nil))
 }
 
 // exists returns whether the given file or directory exists or not
@@ -102,10 +319,29 @@ func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, database
 // Already in hashtable, then remove from the array
 // Unless it is a modified document
 // Otherwise add the new paths to the hashtable and forward them back to the main function
-func alreadySyncedAndCompiled() []string {
-	var notAlreadySynced []string
+func alreadySyncedAndCompiled(matches []string, driveSyncDirectory string, hashTablePath string) []string {
+	fmt.Println("Checking if hashtable already exists...")
+	hashTableExists, err := exists(hashTablePath)
+	if hashTableExists == false {
+		if err != nil {
+			fmt.Println("[ERROR] Error checking for hashtable: ", err)
+		}
+		hashTable := NewHashTableSized(len(matches))
+	}
 	fmt.Println("Looking for already synced documents...")
-	return notAlreadySynced
+	var alreadySynced bool
+	matchesLength := len(matches)
+	for i := 0; i < matchesLength; i++ {
+		alreadySynced = hashTable.ContainsKey(shortenPath(matches[i], driveSyncDirectory))
+		if alreadySynced == true {
+			matches = append(matches[:i], matches[i+1:]...)
+			matchesLength = len(matches)
+			i--
+		} else {
+			hashTable.AddItem(shortenPath(matches[i], driveSyncDirectory), matches[i])
+		}
+	}
+	return matches
 }
 
 // Find all modified documents and make sure to compile them by adding them to a string array
@@ -166,10 +402,10 @@ func convertToMarkdownWithPandoc(docxFilePath string, markdownFilePath string, p
 	pandoc.Done()
 }
 
-/* =================================================================== */
-/* The following code forked from:                                     */
-/* https://gist.github.com/toruuetani/f6aa4751a66ef65646c1a4934471396b */
-/* =================================================================== */
+/* 
+The following code forked from:
+https://gist.github.com/toruuetani/f6aa4751a66ef65646c1a4934471396b
+*/
 
 type MarkdownFileRecord struct {
 	Filename string
@@ -235,11 +471,12 @@ func prependWrapper(content []string, markdownFilePath string, prepend *sync.Wai
 	prepend.Done()
 }
 
-/* ================================================================================================ */
-/* End of modified record.go code.                                                                  */
-/* Beginning of forked popline.go code from:                                                        */
-/* https://stackoverflow.com/questions/30940190/remove-first-line-from-text-file-in-golang#30948278 */
-/* ================================================================================================ */
+/*
+End of modified record.go code.
+
+Beginning of forked popline.go code from:
+https://stackoverflow.com/questions/30940190/remove-first-line-from-text-file-in-golang#30948278
+*/
 
 func deleteLine(f *os.File) ([]byte, error) {
 	fi, err := f.Stat()
@@ -297,9 +534,9 @@ func deleteLineWrapper(markdownFilePath string, deleteline *sync.WaitGroup) {
 	deleteline.Done()
 }
 
-/* =============================== */
-/* End of modified popline.go code */
-/* =============================== */
+/*
+End of modified popline.go code
+*/
 
 // Rewrite a line in a file
 func rewriteMarkdownLine(line int, replacement string, markdownFilePath string, rewritemarkdown *sync.WaitGroup) {
