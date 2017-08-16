@@ -258,7 +258,7 @@ func (table *HashTable) SaveHashTable(filePath string) {
 	f.Close()
 }
 
-func readHashTable(filePath string) (table *HashTable) {
+func ReadHashTable(filePath string) (table *HashTable) {
 	hashtable, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		fmt.Println("[ERROR] Error opening hashtable: ", err)
@@ -357,6 +357,7 @@ func alreadySyncedAndCompiled(matches []string, driveSyncDirectory string, hashT
 		hashTable := NewHashTableSized(len(matches))
 	} else {
 		// try to open the already existing hashtable
+		hashTable := ReadHashTable(hashTablePath)
 	}
 	fmt.Println("Looking for already synced documents...")
 	var alreadySynced bool
@@ -371,6 +372,7 @@ func alreadySyncedAndCompiled(matches []string, driveSyncDirectory string, hashT
 			hashTable.AddItem(shortenPath(matches[i], driveSyncDirectory), matches[i])
 		}
 	}
+	hashTable.SaveHashTable(hashTablePath)
 	return matches
 }
 
