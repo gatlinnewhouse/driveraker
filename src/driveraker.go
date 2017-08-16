@@ -21,145 +21,6 @@ import (
 	"time"
 )
 
-/* ========================= */
-/* The follow code is forked */
-/* from github.com/nf/goto   */
-/* ========================= */
-
-const (
-	saveTimeout     = 10e9
-	saveQueueLength = 1000
-)
-
-type Store interface {
-	Put(path, key *string) error
-	Get(key, path *string) error
-}
-
-type PathStore struct {
-	mu    sync.RWMutex
-	paths map[string]string
-	count int
-	save  chan record
-}
-
-type record struct {
-	key, path string
-}
-
-// Use md5 hash sums for the filepaths
-func md5hash(text, DriveSyncDirectory string) string {
-	r := strings.NewReplacer(DriveSyncDirectory, "")
-	relativepath := r.Replace(text)
-	hasher := md5.New()
-	hasher.Write([]byte(relativepath))
-	return hex.EncodeToString(hasher.Sum(nil))
-}
-
-// Create a hashtable of paths and keys
-func NewPathStore(filename string) *PathStore {
-	s := &PathStore{paths: make(map[string]string)}
-	if filename != "" {
-		s.save = make(chan record, saveQueueLength)
-		if err := s.load(filename); err != nil {
-			log.Println("[ERROR] Error storing paths: ", err)
-		}
-		go s.saveLoop(filename)
-	}
-	return s
-}
-
-// Check for a path in the hashtable
-func (s *PathStore) Get(key, path *string) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if p, okay := s.paths[*key]; okay {
-		*path = p
-		return nil
-	}
-	return errors.New("Key not found")
-}
-
-// Write a new path to the hashtable for an known key
-func (s *PathStore) Set(key, path *string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, present := s.paths[*key]; present {
-		return errors.New("Key already exists")
-	}
-	// Otherwise add the new path
-	s.paths[*key] = *path
-	return nil
-}
-
-// Write a new path to the hashtable without a known key
-func (s *PathStore) Put(path, DriveSyncDirectory *string) error {
-	var key *string
-	for {
-		*key = md5hash(fmt.Sprintf("%s", path), fmt.Sprintf("%s", DriveSyncDirectory))
-		s.count++
-		if err := s.Set(key, path); err == nil {
-			break
-		}
-	}
-	if s.save != nil {
-		s.save <- record{*key, *path}
-	}
-	return nil
-}
-
-// Load the hashtable from a file
-func (s *PathStore) load(filename string) error {
-	f, err := os.Open(filename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	b := bufio.NewReader(f)
-	d := json.NewDecoder(b)
-	for {
-		var r record
-		if err := d.Decode(&r); err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-		if err = s.Set(&r.key, &r.path); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Save the hashtable to a file
-func (s *PathStore) saveLoop(filename string) {
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		log.Println("PathStore: ", err)
-		return
-	}
-	b := bufio.NewWriter(f)
-	e := json.NewEncoder(b)
-	t := time.NewTicker(saveTimeout)
-	defer f.Close()
-	defer b.Flush()
-	for {
-		var err error
-		select {
-		case r := <-s.save:
-			err = e.Encode(r)
-		case <-t.C:
-			err = b.Flush()
-		}
-		if err != nil {
-			log.Println("PathStore: ", err)
-		}
-	}
-}
-
-/* ============================= */
-/* End of modified /nf/goto code */
-/* ============================= */
 
 // The configuration file struct
 type Configuration struct {
@@ -190,6 +51,27 @@ func readConfig(filename string, conf *sync.WaitGroup, confMessage chan string) 
 	conf.Done()
 }
 
+// Use md5 hash sums for the filepaths
+func md5hash(text, DriveSyncDirectory string) string {
+	r := strings.NewReplacer(DriveSyncDirectory, "")
+	relativepath := r.Replace(text)
+	hasher := md5.New()
+	hasher.Write([]byte(relativepath))
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// exists returns whether the given file or directory exists or not
+func exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return true, err
+}
+
 // Sync google drive remote folder to the configured local directory.
 // Then send the output from drive CLI to a function to intepret the output
 // by stripping the full output down to an array of string paths to docx files.
@@ -216,53 +98,14 @@ func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, database
 	driveSync.Done()
 }
 
-// exists returns whether the given file or directory exists or not
-func exists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return true, err
-}
-
 // Look up paths in hashtable
 // Already in hashtable, then remove from the array
 // Unless it is a modified document
 // Otherwise add the new paths to the hashtable and forward them back to the main function
-func alreadySyncedAndCompiled(hashtablePath string, driveSyncDirectory string, checkHashtable *sync.WaitGroup, filePathsToSync chan []string) {
+func alreadySyncedAndCompiled() []string {
+	var notAlreadySynced []string
 	fmt.Println("Looking for already synced documents...")
-	matches := <-filePathsToSync
-	hashtable := NewPathStore("/tmp/driverakerDBtmp")
-	exists, err := exists(hashtablePath)
-	if exists == false {
-		if err != nil {
-			fmt.Println("[ERROR] Error opening the hashtable database: ", err)
-		}
-		hashtable.saveLoop(hashtablePath)
-	}
-	hashtable.load(hashtablePath)
-	// Check for filepaths in hashtable
-	var i int
-	for i = 0; i < len(matches); i++ {
-		key := md5hash(matches[i], driveSyncDirectory)
-		inHashTable := hashtable.Get(&key, &matches[i])
-		if inHashTable != nil {
-			matches = append(matches[:i], matches[i+1:]...)
-			i--
-		} else {
-			errWriting := hashtable.Put(&matches[i], &driveSyncDirectory)
-			if errWriting != nil {
-				fmt.Println("[ERROR] Error saving path to hashtable: ", err)
-			}
-		}
-	}
-	filePathsToSync <- matches
-	// Save hashtable to file
-	go hashtable.saveLoop(hashtablePath)
-	checkHashtable.Done()
+	return notAlreadySynced
 }
 
 // Find all modified documents and make sure to compile them by adding them to a string array
@@ -294,9 +137,7 @@ func interpretDriveOutput(syncGDrive *sync.WaitGroup, hashtablePath string, driv
 	var filePathsHashtable chan []string
 	lookupPathsInHashtable := new(sync.WaitGroup)
 	lookupPathsInHashtable.Add(1)
-	go alreadySyncedAndCompiled(hashtablePath, driveSyncDirectory, lookupPathsInHashtable, filePathsHashtable)
-	filePathsHashtable <- matches
-	newMatches := <-filePathsHashtable
+	newMatches := alreadySyncedAndCompiled()
 	lookupPathsInHashtable.Wait()
 	// Find modified documents and add them to the docx paths
 	var filePathsModified chan []string
