@@ -4,21 +4,18 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"os/user"
 	"path"
 	"regexp"
 	"strings"
+	"strconv"
 	"sync"
-	"time"
 )
 
 /*
@@ -167,8 +164,11 @@ func (table *HashTable) resizeTable() {
 // the item should be placed in.
 func getIndex(key string, max int) int {
 	hash := md5.New()
-	hash.Write([]byte(key))
-	digest := hash.Sum32()
+	md5string := string(hash.Sum([]byte(key)))
+	digest, err := strconv.Atoi(md5string)
+	if err != nil {
+		fmt.Println("[ERROR] Error converting md5 sum to integer index in hashtable: ", err)
+	}
 	return int(digest) % max
 }
 
