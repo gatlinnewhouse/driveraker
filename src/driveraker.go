@@ -263,12 +263,11 @@ func ReadHashTable(filePath string) (table *HashTable) {
 	if err != nil {
 		fmt.Println("[ERROR] Error opening hashtable: ", err)
 	}
-	var table HashTable
 	err = json.Unmarshal(hashtable, &table)
 	if err != nil {
 		fmt.Println("[ERROR] Error reading hashtable: ", err)
 	}
-	return &table
+	return table
 }
 
 /*
@@ -347,6 +346,7 @@ func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, database
 // Unless it is a modified document
 // Otherwise add the new paths to the hashtable and forward them back to the main function
 func alreadySyncedAndCompiled(matches []string, driveSyncDirectory string, hashTablePath string) []string {
+	var hashTable HashTable
 	fmt.Println("Checking if hashtable already exists...")
 	hashTableExists, err := exists(hashTablePath)
 	// if a hashtable does not exist then make a new one
