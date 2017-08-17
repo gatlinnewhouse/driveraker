@@ -346,7 +346,7 @@ func syncGoogleDrive(syncDirectory string, driveRemoteDirectory string, database
 // Unless it is a modified document
 // Otherwise add the new paths to the hashtable and forward them back to the main function
 func alreadySyncedAndCompiled(matches []string, driveSyncDirectory string, hashTablePath string) []string {
-	var hashTable HashTable
+	var hashTable *HashTable
 	fmt.Println("Checking if hashtable already exists...")
 	hashTableExists, err := exists(hashTablePath)
 	// if a hashtable does not exist then make a new one
@@ -354,10 +354,10 @@ func alreadySyncedAndCompiled(matches []string, driveSyncDirectory string, hashT
 		if err != nil {
 			fmt.Println("[ERROR] Error checking for hashtable: ", err)
 		}
-		hashTable := NewHashTableSized(len(matches))
+		hashTable = NewHashTableSized(len(matches))
 	} else {
 		// try to open the already existing hashtable
-		hashTable := ReadHashTable(hashTablePath)
+		hashTable = ReadHashTable(hashTablePath)
 	}
 	fmt.Println("Looking for already synced documents...")
 	var alreadySynced bool
@@ -377,11 +377,10 @@ func alreadySyncedAndCompiled(matches []string, driveSyncDirectory string, hashT
 }
 
 // Find all modified documents and make sure to compile them by adding them to a string array
-func findModifiedDocuments(findModifiedPaths *sync.WaitGroup, result string, addToFilePaths chan []string) {
+func findModifiedDocuments(result string) (modifiedDocuments []string) {
 	fmt.Println("Looking for modified documents...")
 	re := regexp.MustCompile(`M (\/.*)`)
 	values := re.FindAllString(result, -1)
-	var modifiedDocuments []string
 	var i int
 	for i = 0; i < len(values); i++ {
 		value := fmt.Sprintf("%f", values[0])
@@ -391,8 +390,7 @@ func findModifiedDocuments(findModifiedPaths *sync.WaitGroup, result string, add
 		value = value + "_exports" + filename + ".docx"
 		modifiedDocuments = append(modifiedDocuments, value)
 	}
-	addToFilePaths <- modifiedDocuments
-	findModifiedPaths.Done()
+	return modifiedDocuments
 }
 
 // Find all Exported file paths via a regex expression and then add them to an array
@@ -402,18 +400,9 @@ func interpretDriveOutput(syncGDrive *sync.WaitGroup, hashtablePath string, driv
 	re := regexp.MustCompile(`[^'](?:to ')(.*?)'`)
 	matches := re.FindAllString(results, -1)
 	// Lookup entries in hashtable
-	var filePathsHashtable chan []string
-	lookupPathsInHashtable := new(sync.WaitGroup)
-	lookupPathsInHashtable.Add(1)
-	newMatches := alreadySyncedAndCompiled()
-	lookupPathsInHashtable.Wait()
+	newMatches := alreadySyncedAndCompiled(matches, driveSyncDirectory, hashtablePath)
 	// Find modified documents and add them to the docx paths
-	var filePathsModified chan []string
-	findModified := new(sync.WaitGroup)
-	findModified.Add(1)
-	go findModifiedDocuments(findModified, results, filePathsModified)
-	modifiedDocuments := <-filePathsModified
-	findModified.Wait()
+	modifiedDocuments := findModifiedDocuments(results)
 	newMatches = append(newMatches, modifiedDocuments...)
 	// Send the list of files to convert and append hugo front-matter back to the main thread
 	fmt.Printf("File paths: %s \n", newMatches)
