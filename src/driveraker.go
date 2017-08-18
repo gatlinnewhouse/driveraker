@@ -89,7 +89,7 @@ func (list *LinkedList) RemoveItem(item interface{}) {
 		}
 
 		// Keep iterating through the list. I could probably assign
-		// this in the for-loop definition above.  
+		// this in the for-loop definition above.
 		prevNode = currNode
 	}
 }
@@ -121,7 +121,7 @@ type HashTable struct {
 // the hashtable. This is the value stored in the linked lists
 // per bucket.
 type tableItem struct {
-	Key   string `json:"Key"`
+	Key   string      `json:"Key"`
 	Value interface{} `json:"Value"`
 }
 
@@ -272,11 +272,11 @@ End of forked Hashtable code
 
 // The configuration file struct
 type Configuration struct {
-	DriveSyncDirectory          string
-	GoogleDriveRemoteDirectory  string
-	HugoPostDirectory           string
-	ProductionDirectory         string
-	HashtablePath							  string
+	DriveSyncDirectory         string
+	GoogleDriveRemoteDirectory string
+	HugoPostDirectory          string
+	ProductionDirectory        string
+	HashtablePath              string
 }
 
 // Read the configuration JSON file in order to get some settings and directories
@@ -426,7 +426,7 @@ func convertToMarkdownWithPandoc(docxFilePath string, markdownFilePath string, p
 	pandoc.Done()
 }
 
-/* 
+/*
 The following code forked from:
 https://gist.github.com/toruuetani/f6aa4751a66ef65646c1a4934471396b
 */
@@ -776,7 +776,7 @@ func compileAndServeHugoSite(hugoDirectory string, productionDirectory string, c
 		fmt.Println("[ERROR] Error compiling a website with hugo: ", err)
 	}
 	fmt.Println("hugo: ", string(out))
-	publishHugoSite := exec.Command("/bin/bash", copyHugoSiteToProductionPath, hugoDirectory + "public/", productionDirectory)
+	publishHugoSite := exec.Command("/bin/bash", copyHugoSiteToProductionPath, hugoDirectory+"public/", productionDirectory)
 	publishHugoSite.Dir = "/"
 	fmt.Println("Copying hugo compiled site to production directory...")
 	out, err = publishHugoSite.Output()
@@ -795,7 +795,7 @@ func main() {
 		fmt.Println("[ERROR] driveraker could not get the user's home directory")
 	}
 	// Set the driveraker config path
-  driverakerConfigPath := HOME + "/.config/driveraker/config"
+	driverakerConfigPath := HOME + "/.config/driveraker/config"
 	// Set the copy Hugo compiled site to production directory script path
 	copyHugoSiteScript := HOME + "/.config/driveraker/copyHugoSite.sh"
 	// Read the driveraker config
