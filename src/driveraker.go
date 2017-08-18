@@ -26,42 +26,42 @@ https://github.com/jackfhebert/hashtable
 type linkedListNode struct {
 	// The value of this node.
 	// Once I figure out interfaces, that will go here.
-	value interface{}
+	Value interface{} `json:"Value"`
 	// Pointer to the next node in the list.
-	next *linkedListNode
+	Next *linkedListNode `json:"Next"`
 }
 
 // Exposed - this is the struct to use.
 type LinkedList struct {
 	// The first node in the list.
-	first *linkedListNode
+	First *linkedListNode `json:"First"`
 	// The last item in the list.
 	// This makes adding to the list fast, but isn't strictly
 	// needed.
-	last *linkedListNode
+	Last *linkedListNode `json:"Last"`
 	// How many items are in the list. This is mostly
 	// for the size helper and not strictly needed.
-	size int
+	Size int `json:"Size"`
 }
 
 func NewLinkedList() *LinkedList {
 	return &LinkedList{nil, nil, 0}
 }
 
-func (list *LinkedList) Size() int {
-	return list.size
+func (list *LinkedList) SizeOf() int {
+	return list.Size
 }
 
 func (list *LinkedList) AddItem(item interface{}) {
-	list.size += 1
+	list.Size += 1
 	node := &linkedListNode{item, nil}
-	if list.first == nil {
-		list.first = node
+	if list.First == nil {
+		list.First = node
 	}
-	if list.last != nil {
-		list.last.next = node
+	if list.Last != nil {
+		list.Last.Next = node
 	}
-	list.last = node
+	list.Last = node
 }
 
 func (list *LinkedList) RemoveItem(item interface{}) {
@@ -69,19 +69,19 @@ func (list *LinkedList) RemoveItem(item interface{}) {
 	// pointers between nodes.
 	var prevNode *linkedListNode
 	prevNode = nil
-	for currNode := list.first; currNode != nil; currNode = currNode.next {
-		if currNode.value == item {
+	for currNode := list.First; currNode != nil; currNode = currNode.Next {
+		if currNode.Value == item {
 			// Update the list metadata.
-			list.size -= 1
-			if currNode == list.first {
-				list.first = currNode.next
+			list.Size -= 1
+			if currNode == list.First {
+				list.First = currNode.Next
 			}
-			if currNode == list.last {
-				list.last = prevNode
+			if currNode == list.Last {
+				list.Last = prevNode
 			}
 			// Update the nodes.
 			if prevNode != nil {
-				prevNode.next = currNode.next
+				prevNode.Next = currNode.Next
 			}
 
 			// All done here.
@@ -95,10 +95,10 @@ func (list *LinkedList) RemoveItem(item interface{}) {
 }
 
 func (list *LinkedList) Items() []*interface{} {
-	items := make([]*interface{}, list.size)
+	items := make([]*interface{}, list.Size)
 
-	for i, currNode := 0, list.first; currNode != nil; currNode = currNode.next {
-		items[i] = &currNode.value
+	for i, currNode := 0, list.First; currNode != nil; currNode = currNode.Next {
+		items[i] = &currNode.Value
 		i += 1
 	}
 	return items
