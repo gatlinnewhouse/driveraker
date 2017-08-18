@@ -3,9 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"hash/adler32"
 	"io"
 	"io/ioutil"
 	"os"
@@ -14,7 +14,6 @@ import (
 	"path"
 	"regexp"
 	"strings"
-	"strconv"
 	"sync"
 )
 
@@ -163,12 +162,9 @@ func (table *HashTable) resizeTable() {
 // Helper function to take the key string and determine which bucket
 // the item should be placed in.
 func getIndex(key string, max int) int {
-	hash := md5.New()
-	md5string := string(hash.Sum([]byte(key)))
-	digest, err := strconv.Atoi(md5string)
-	if err != nil {
-		fmt.Println("[ERROR] Error converting md5 sum to integer index in hashtable: ", err)
-	}
+	hash := adler32.New()
+	hash.Write([]byte(key))
+	digest := hash.Sum32()
 	return int(digest) % max
 }
 
@@ -369,7 +365,7 @@ func alreadySyncedAndCompiled(matches []string, driveSyncDirectory string, hashT
 			matchesLength = len(matches)
 			i--
 		} else {
-			hashTable.AddItem(shortenPath(matches[i], driveSyncDirectory), matches[i])
+			hashTable.AddItem(shortenPath(matches[i], driveSyncDirectory), shortenPath(matches[i], driveSyncDirectory))
 		}
 	}
 	hashTable.SaveHashTable(hashTablePath)
@@ -399,6 +395,13 @@ func interpretDriveOutput(syncGDrive *sync.WaitGroup, hashtablePath string, driv
 	results := <-output
 	re := regexp.MustCompile(`[^'](?:to ')(.*?)'`)
 	matches := re.FindAllString(results, -1)
+	// Make the matches into actual strings
+	for i := 0; i < len(matches); i++ {
+		match := matches[i]
+		match = strings.Replace(match, ` to '`, ``, -1)
+		match = strings.Replace(match, `docx'`, `docx`, -1)
+		matches[i] = match
+	}
 	// Lookup entries in hashtable
 	newMatches := alreadySyncedAndCompiled(matches, driveSyncDirectory, hashtablePath)
 	// Find modified documents and add them to the docx paths
@@ -821,16 +824,12 @@ func main() {
 	var markdownPaths []string
 	fmt.Println("Converting synced docx files into markdown files...")
 	for i := 0; i < len(docxFilePaths); i++ {
-		docxFilePath := docxFilePaths[i]
-		docxFilePath = strings.Replace(docxFilePath, ` to '`, ``, -1)
-		docxFilePath = strings.Replace(docxFilePath, `docx'`, `docx`, -1)
-		docxFilePaths[i] = docxFilePath
-		fmt.Println("Converting " + docxFilePath)
+		fmt.Println("Converting " + docxFilePaths[i])
 		nameRegex := regexp.MustCompile(`(\w+)(?:.docx)`)
-		name := nameRegex.FindAllString(docxFilePath, -1)
+		name := nameRegex.FindAllString(docxFilePaths[i], -1)
 		markdownPath := hugoPostDirectory + "content/articles/" + name[0] + ".md"
 		markdownPaths = append(markdownPaths, markdownPath)
-		go convertToMarkdownWithPandoc(docxFilePath, markdownPath, &pandoc)
+		go convertToMarkdownWithPandoc(docxFilePaths[i], markdownPath, &pandoc)
 	}
 	pandoc.Wait()
 	// Add hugo front-matter to the files
