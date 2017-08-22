@@ -1,7 +1,7 @@
 {
-        "DriveSyncDirectory": "/home/godel/.gdrive/",
-        "GoogleDriveRemoteDirectory": "The_Quest/WEB_STUFF/",
-        "HugoPostDirectory": "/home/godel/hugo-test-site/",
+        "DriveSyncDirectory": "/home/USERNAME/.gdrive/",
+        "GoogleDriveRemoteDirectory": "DIRECTORY/SUBDIRECTORY_ON_GOOGLE_DRIVE/",
+        "HugoPostDirectory": "/home/USERNAME/HUGO_SITE_DIRECTORY/",
         "ProductionDirectory": "/var/www/html/",
-        "HashtablePath": "/home/godel/.config/driveraker/pathHashDB"
+        "HashtablePath": "/home/USERNAME/.config/driveraker/.db"
 }

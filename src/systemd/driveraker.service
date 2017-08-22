@@ -2,7 +2,7 @@
 Description=Sync driveraker
 
 [Service]
-ExecStart=/bin/bash /home/driveraker/.config/driveraker/sync
+ExecStart=/bin/bash /home/USERNAME/.config/driveraker/sync
 
 [Install]
 WantedBy=default.target
