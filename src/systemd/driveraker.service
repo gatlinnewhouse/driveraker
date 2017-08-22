@@ -2,10 +2,7 @@
 Description=Sync driveraker
 
 [Service]
-Type=oneshot
-User=driveraker
-Group=driveraker
-ExecStart=/bin/bash /home/driveraker/.config/driveraker/sync.sh
+ExecStart=/bin/bash /home/driveraker/.config/driveraker/sync
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

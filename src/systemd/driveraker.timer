@@ -4,6 +4,7 @@ Description=Run driveraker every hour
 [Timer]
 OnBootSec=5min
 OnUnitActiveSec=60min
+Unit=driveraker.service
 
 [Install]
-WantedBy=timers.target
+WantedBy=multi-user.target
