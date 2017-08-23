@@ -650,21 +650,23 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 	// Now find the cover photo for the article
 	var imagenames []string
 	imagenames, i = regexLineOfMarkdown(markdownfile.Contents, `(\w+.png)`, `<img src=`, i)
-	imagename := imagenames[1]
-	coverImagePathBefore := "\"" + path.Dir(path.Dir(docxFilePath)) + "/" + imagename + "\""
-	//fmt.Println("image path before: " + coverImagePathBefore)
-	coverImagePathAfter := "\"" + hugoDirectory + "static/images/" + imagename + "\""
-	//fmt.Println("image path after: " + coverImagePathAfter)
-	copyCoverImage := exec.Command("/bin/cp", coverImagePathBefore, coverImagePathAfter)
-	copyCoverImage.Dir = "/"
-	fmt.Println("Moving cover image image to hugo directory...")
-	out, err := copyCoverImage.CombinedOutput()
-	if err != nil {
-		fmt.Println("[ERROR] Error moving "+imagename+": ", err)
+	if len(imagenames) >= 2 {
+		imagename := imagenames[1]
+		coverImagePathBefore := "\"" + path.Dir(path.Dir(docxFilePath)) + "/" + imagename + "\""
+		//fmt.Println("image path before: " + coverImagePathBefore)
+		coverImagePathAfter := "\"" + hugoDirectory + "static/images/" + imagename + "\""
+		//fmt.Println("image path after: " + coverImagePathAfter)
+		copyCoverImage := exec.Command("/bin/cp", coverImagePathBefore, coverImagePathAfter)
+		copyCoverImage.Dir = "/"
+		fmt.Println("Moving cover image image to hugo directory...")
+		out, err := copyCoverImage.CombinedOutput()
+		if err != nil {
+			fmt.Println("[ERROR] Error moving "+imagename+": ", err)
+		}
+		fmt.Println("Moved the image: ", string(out))
+		frontmatterimage := "    \"image\": \"" + imagename + "\","
+		hugoFrontMatter = append(hugoFrontMatter, frontmatterimage)
 	}
-	fmt.Println("Moved the image: ", string(out))
-	frontmatterimage := "    \"image\": \"" + imagename + "\","
-	hugoFrontMatter = append(hugoFrontMatter, frontmatterimage)
 	// Caption for image
 	var frontimagecaption []string
 	frontimagecaption, i = regexLineOfMarkdown(markdownfile.Contents, `##### +(.*)`, `#####`, i)
@@ -736,14 +738,14 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 			rewriteimageline.Add(1)
 			re2 := regexp.MustCompile(`(\w+.png)`)
 			inlineImage := re2.FindAllString(markdownfile.Contents[j], -1)
-			inlineImagePathBefore := "\"" + path.Dir(path.Dir(docxFilePath)) + "/" + inlineImage[1] + "\""
-			inlineImagePathAfter := "\"" + hugoDirectory + "static/images/" + inlineImage[1] + "\""
+			inlineImagePathBefore := path.Dir(path.Dir(docxFilePath)) + "/" + inlineImage[1]
+			inlineImagePathAfter := hugoDirectory + "static/images/" + inlineImage[1]
 			copyImage := exec.Command("/bin/cp", inlineImagePathBefore, inlineImagePathAfter)
 			copyImage.Dir = "/"
 			fmt.Println("Moving inline image to hugo directory...")
 			out, err := copyImage.Output()
 			if err != nil {
-				fmt.Println("[ERROR] Error moving"+inlineImage[1]+": ", err)
+				fmt.Println("[ERROR] Error moving "+inlineImage[1]+": ", err)
 				return
 			}
 			fmt.Println("Moving the image: ", out)
