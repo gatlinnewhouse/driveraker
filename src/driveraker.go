@@ -651,7 +651,7 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 	var imagenames []string
 	imagenames, i = regexLineOfMarkdown(markdownfile.Contents, `(\w+.png)`, `<img src=`, i)
 	imagename := imagenames[1]
-	coverImagePathBefore := "\"" + path.Dir(path.Dir(docxFilePath)) + "/" + imagename "\""
+	coverImagePathBefore := "\"" + path.Dir(path.Dir(docxFilePath)) + "/" + imagename + "\""
 	//fmt.Println("image path before: " + coverImagePathBefore)
 	coverImagePathAfter := "\"" + hugoDirectory + "static/images/" + imagename + "\""
 	//fmt.Println("image path after: " + coverImagePathAfter)
