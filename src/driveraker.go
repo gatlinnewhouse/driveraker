@@ -241,7 +241,7 @@ func (table *HashTable) GetValue(key string) interface{} {
 }
 
 func (table *HashTable) SaveHashTable(filePath string) {
-	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		fmt.Println("[ERROR] Error opening hashtable file: ", err)
 	}
@@ -657,12 +657,12 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 	//fmt.Println("image path after: " + "\"" + coverImagePathAfter + "\"")
 	copyCoverImage := exec.Command("/bin/cp", coverImagePathBefore, coverImagePathAfter)
 	copyCoverImage.Dir = "/"
-	fmt.Println("Moving inline image to hugo directory...")
+	fmt.Println("Moving cover image image to hugo directory...")
 	out, err := copyCoverImage.CombinedOutput()
 	if err != nil {
 		fmt.Println("[ERROR] Error moving "+imagename+": ", err)
 	}
-	fmt.Println("Moved the image: ", out)
+	fmt.Println("Moved the image: ", string(out))
 	frontmatterimage := "    \"image\": \"" + imagename + "\","
 	hugoFrontMatter = append(hugoFrontMatter, frontmatterimage)
 	// Caption for image
