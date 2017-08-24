@@ -652,9 +652,11 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 	imagenames, i = regexLineOfMarkdown(markdownfile.Contents, `(\w+.png)`, `<img src=`, i)
 	if len(imagenames) >= 2 {
 		imagename := imagenames[1]
-		coverImagePathBefore := "\"" + path.Dir(path.Dir(docxFilePath)) + "/" + imagename + "\""
+		coverImagePathBefore := path.Dir(path.Dir(docxFilePath)) + "/" + imagename
+		coverImagePathBefore = strings.Replace(coverImagePathBefore, ` `, `\ `, -1)
 		//fmt.Println("image path before: " + coverImagePathBefore)
-		coverImagePathAfter := "\"" + hugoDirectory + "static/images/" + imagename + "\""
+		coverImagePathAfter := hugoDirectory + "static/images/" + imagename
+		coverImagePathAfter = strings.Replace(coverImagePathAfter, ` `, `\ `, -1)
 		//fmt.Println("image path after: " + coverImagePathAfter)
 		copyCoverImage := exec.Command("/bin/cp", coverImagePathBefore, coverImagePathAfter)
 		copyCoverImage.Dir = "/"
@@ -739,7 +741,9 @@ func readMarkdownWriteHugoHeaders(markdownFilePath string, docxFilePath string, 
 			re2 := regexp.MustCompile(`(\w+.png)`)
 			inlineImage := re2.FindAllString(markdownfile.Contents[j], -1)
 			inlineImagePathBefore := path.Dir(path.Dir(docxFilePath)) + "/" + inlineImage[1]
+			inlineImagePathBefore = strings.Replace(inlineImagePathBefore, ` `, `\ `, -1)
 			inlineImagePathAfter := hugoDirectory + "static/images/" + inlineImage[1]
+			inlineImagePathAfter = strings.Replace(inlineImagePathAfter, ` `, `\ `, -1)
 			copyImage := exec.Command("/bin/cp", inlineImagePathBefore, inlineImagePathAfter)
 			copyImage.Dir = "/"
 			fmt.Println("Moving inline image to hugo directory...")
